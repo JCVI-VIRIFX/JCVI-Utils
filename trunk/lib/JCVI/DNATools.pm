@@ -33,6 +33,8 @@ package JCVI::DNATools;
 use strict;
 use warnings;
 
+our $VERSION = '0.1.0';
+
 use Exporter 'import';
 
 our %EXPORT_TAGS = (
