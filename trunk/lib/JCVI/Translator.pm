@@ -440,7 +440,7 @@ The basic function of this module. Translate the specified
 region of the sequence and return a reference to the
 translated string. The parameters are:
 
- strand - '+' or '-'; mandatory
+ strand - 1 or -1; mandatory
  lower  - integer between 0 and length; optional
           defaults to 0
  upper  - integer between 0 and length; optional
@@ -475,7 +475,7 @@ To translate the following:
     ---------->
 
  $pepRef = $translator->translate(seqRef => \$sequence,
-                                  strand => '+',
+                                  strand => 1,
                                   lower  => 1,
                                   upper  => 7);
 
@@ -484,23 +484,23 @@ To translate the following:
       <----------
 
  $pepRef = $translator->translate(seqRef => \$sequence,
-                                  strand => '-',
+                                  strand => -1,
                                   lower  => 2,
                                   upper  => 8);
 
 Examples:
 
- $pepRef = $translator->translate(strand => '-');
+ $pepRef = $translator->translate(strand => -1);
 
- $pepRef = $translator->translate(strand => '+',
+ $pepRef = $translator->translate(strand => 1,
                                   seqRef => \'acttgacgt');
 
- $pepRef = $translator->translate(strand => '-',
+ $pepRef = $translator->translate(strand => -1,
                                   sequence => 'acttgacgt',
                                   lower => 2,
                                   upper => 5);
 
- $pepRef = $translator->translate(strand => '+',
+ $pepRef = $translator->translate(strand => +1,
                                   seqRef => \'acttgacgt',
                                   lower => 0,
                                   upper => 8,
@@ -515,8 +515,8 @@ sub translate {
 
     my %params = validate(
         @_,
-        {  strand => { default => '+',
-                       regex   => qr/^[+-]$/,
+        {  strand => { default => 1,
+                       regex   => qr/^[+-]?1$/,
                        type    => SCALAR
            },
            lower => {
@@ -636,13 +636,13 @@ sub translate6 {
     push @pepRefs,
         $self->translate( seqRef    => $seqRef,
                           lower     => $_,
-                          strand    => '+',
+                          strand    => 1,
                           sanitized => 1
         ) foreach ( 0 .. 2 );
     push @pepRefs,
         $self->translate( seqRef    => $seqRef,
                           upper     => length($$seqRef) - $_,
-                          strand    => '-',
+                          strand    => -1,
                           sanitized => 1
         ) foreach ( 0 .. 2 );
 
@@ -655,7 +655,7 @@ sub translate6 {
 
 Translate a gene spanning multiple exons. Paramters are:
 
- strand: '+' or '-'; mandatory
+ strand: 1 or -1; mandatory
  seqRef: reference to sequence; optional if one is loaded
  partial: '0' or '1'; optional, defaults to '0'
 
@@ -678,7 +678,7 @@ sub translateExons {
 
     my %params = validate(
         @_,
-        {  strand => { regex => qr/^[+-]$/,
+        {  strand => { regex => qr/^[+-]?1$/,
                        type  => SCALAR
            },
            seqRef => {
@@ -726,7 +726,7 @@ VALIDATION: {
     my $prefix;
     my $offset;
 
-    if ( $params{strand} eq '+' ) {
+    if ( $params{strand} == 1 ) {
         $increment = 3;
         $prefix    = '';
         $offset    = 0;
@@ -747,7 +747,7 @@ EXON: foreach my $i ( 0 .. $#{ $params{exons} } ) {
 
     VALIDATE: {
             my $exon
-                = $params{strand} eq '+'
+                = $params{strand} == 1
                 ? $params{exons}[$i]
                 : $params{exons}[ -( $i + 1 ) ];
 
@@ -793,7 +793,8 @@ EXON: foreach my $i ( 0 .. $#{ $params{exons} } ) {
                     $leftover .= substr( $$seqRef, $lower, $length );
                 }
                 else {
-                    $leftover = substr( $$seqRef, $lower, $length ) . $leftover;
+                    $leftover
+                        = substr( $$seqRef, $lower, $length ) . $leftover;
                 }
 
                 next EXON;
@@ -863,7 +864,8 @@ EXON: foreach my $i ( 0 .. $#{ $params{exons} } ) {
         # the execution.
 
         for ( $start = $start; $start != $stop; $start += $increment ) {
-            $peptide .= $$self{ $prefix . 'forward' }{ substr( $$seqRef, $start, 3 ) } || 'X';
+            $peptide .= $$self{ $prefix . 'forward' }
+                { substr( $$seqRef, $start, 3 ) } || 'X';
         }
     }
 
@@ -895,17 +897,21 @@ Example:
 sub translateCodon {
     my $self = shift;
 
-    my ( $codon, $strand, $start )
-        = validate_pos( @_,
-                        { regex   => qr/^${nucMatch}{3}$/ },
-                        { default => '+' },
-                        { default => 0 } );
+    my ( $codon, $strand, $start ) = validate_pos(
+        @_,
+        { regex => qr/^${nucMatch}{3}$/ },
+        {  default => 1,
+           regex   => qr/^[+-]?1$/,
+           type    => SCALAR
+        },
+        { default => 0,
+          regex   => qr/^[01]$/,
+          type    => SCALAR
+        }
+    );
     $codon = uc $codon;
 
-    if ( $strand eq '-' ) {
-        my $rc_codon_ref = reverseComplement( \$codon );
-        $codon = $$rc_codon_ref;
-    }
+    my $prefix = $strand == 1 ? '' : 'rc_';
 
     DEBUG("translateCodon called");
     TRACE("Codon $codon");
@@ -913,11 +919,11 @@ sub translateCodon {
     my $table;
     my $notFound;
     unless ($start) {
-        $table    = 'forward';
+        $table    = $prefix . 'forward';
         $notFound = 'X';
     }
     else {
-        $table    = 'starts';
+        $table    = $prefix . 'starts';
         $notFound = '-';
     }
     TRACE("Using $table table");
