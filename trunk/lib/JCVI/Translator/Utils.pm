@@ -46,32 +46,6 @@ our $VERSION = '0.2.0';
 use Log::Log4perl qw(:easy);
 use Params::Validate qw(:all);
 
-sub _loadTable {
-    my $self = shift;
-
-    DEBUG('_loadTable called');
-
-    my $error = $self->SUPER::_loadTable(@_);
-
-    return $error if $error;
-
-    ########################################
-    # Instantiate regular expressions for
-    # later use by getORF/getCDS.
-
-    my $startRegex    = join '|', keys %{ $$self{starts} };
-    my $rc_startRegex = join '|', keys %{ $$self{rc_starts} };
-    my $stopRegex     = join '|', @{ $$self{reverse}{'*'} };
-    my $rc_stopRegex  = join '|', @{ $$self{rc_reverse}{'*'} };
-
-    $$self{startRegex}    = qr/$startRegex/;
-    $$self{rc_startRegex} = qr/$rc_startRegex/;
-    $$self{stopRegex}     = qr/$stopRegex/;
-    $$self{rc_stopRegex}  = qr/$rc_stopRegex/;
-
-    return 0;
-}
-
 =item getORF()
 
 =item [$start, $stop] = $translator->getORF($seqRef, $strand);
@@ -84,7 +58,7 @@ the strand, lower and upper bounds, inclusive:
   *****       *****
         <--------->
 
-Will return ['+', 3, 9]. You can also specify which strand
+Will return [1, 3, 9]. You can also specify which strand
 you are looking for the ORF to be on.
 
 For ORFs starting at the very beginning of the strand or
@@ -98,7 +72,7 @@ ends, this method will cut at the last complete codon.
                 *****
     <--------->
 
-Will return ['-', 1, 7]. The distance between lower and
+Will return [-1, 1, 7]. The distance between lower and
 upper will always be a multiple of 3. This is to make it
 clear which frame the ORF is in.
 
@@ -118,21 +92,18 @@ sub getORF {
     my ( $seqRef, $strand )
         = validate_pos( @_,
                         { type => SCALARREF },
-                        { default => '-+',
-                          regex   => qr/^[+-]{1,2}$/
+                        { default => 0,
+                          regex   => qr/^[+-]?[01]$/
                         }
         );
 
     DEBUG('getORF called');
 
-    my ( $best_strand, $lower, $upper ) = ( '+', 0, 0 );
+    my ( $best_strand, $lower, $upper ) = ( 1, 0, 0 );
 
-    while ( my $cur_strand = chop $strand ) {
+    foreach my $cur_strand ( $strand == 0 ? ( -1, 1 ) : ($strand) ) {
         my @lowers = ( 0 .. 2 );
-        my $stopRegex
-            = $cur_strand eq '+'
-            ? $$self{'stopRegex'}
-            : $$self{'rc_stopRegex'};
+        my $stopRegex = $self->regex( 'stop', $cur_strand );
 
         ########################################
         # Rather than using a regular expression
@@ -161,7 +132,7 @@ sub getORF {
             my $curUpper = pos $$seqRef;
             my $frame    = $curUpper % 3;
 
-            $curUpper += length $1 if ( $1 && ( $cur_strand eq '+' ) );
+            $curUpper += length $1 if ( $1 && ( $cur_strand == 1 ) );
 
             ########################################
             # If the current distance between start
@@ -196,7 +167,7 @@ CDS.
   >>>>>       *****
   <--------------->
 
-Will return ['+', 0, 9].
+Will return [1, 0, 9].
 
 Strict is a newly added feature which controls how strictly getCDS functions.
 There are 3 levels of strictness, enumerated 0, 1 and 2. 2 is the most strict,
@@ -209,7 +180,7 @@ the start of the molecule.
 Example:
 
  $ref = $translator->getCDSs(\'ATGAAATAG');
- $ref = $translator->getCDSs(\'ATGAAATAG', '-');
+ $ref = $translator->getCDSs(\'ATGAAATAG', -1);
 
 Output:
 
@@ -223,8 +194,8 @@ sub getCDS {
     my ( $seqRef, $strand, $strict )
         = validate_pos( @_,
                         { type => SCALARREF },
-                        { default => '-+',
-                          regex   => qr/^[+-]{1,2}$/
+                        { default => 0,
+                          regex   => qr/^[+-]?[01]$/
                         },
                         { default => 1,
                           regex   => qr/^[012]$/
@@ -233,22 +204,23 @@ sub getCDS {
 
     DEBUG('getCDS called');
 
-    my ( $best_strand, $lower, $upper ) = ( '+', 0, 0 );
+    my ( $best_strand, $lower, $upper ) = ( 1, 0, 0 );
 
-    while ( my $cur_strand = chop $strand ) {
+    foreach my $cur_strand ( $strand == 0 ? ( -1, 1 ) : ($strand) ) {
+        my $lowerRegex = $self->regex( 'lower', $cur_strand );
+        my $upperRegex = $self->regex( 'upper', $cur_strand );
+
+        ########################################
+        # Initialize
         my @lowers;
-        my $lowerRegex;
-        my $upperRegex;
-
-        if ( $cur_strand eq '+' ) {
+        if ( $cur_strand == 1 ) {
             @lowers = ( $strict != 0 ? map {undef} ( 0 .. 2 ) : ( 0 .. 2 ) );
-            $lowerRegex = $$self{startRegex};
-            $upperRegex = $$self{stopRegex};
         }
         else {
-            @lowers = ( $strict == 2 ? map {undef} ( 0 .. 2 ) : ( 0 .. 2 ) );
-            $lowerRegex = $$self{rc_stopRegex};
-            $upperRegex = $$self{rc_startRegex};
+            @lowers = ( $strict == 2
+                        ? map {undef} ( 0 .. 2 )
+                        : ( 0 .. 2 )
+            );
         }
 
         ########################################
@@ -280,12 +252,12 @@ sub getCDS {
             # strand, that means we found a stop,
             # so we update the lower bound.
             #
-            # Otherwise, we are on the '+' strand,
-            # meaning we have found the start, so
-            # only set the lower bound if it is not
-            # already set (don't want to overwrite
-            # the location of a previous start
-            # codon).
+            # Otherwise, we are on the positive
+            # strand, meaning we have found the
+            # start, so only set the lower bound if
+            # it is not already set (don't want to
+            # overwrite the location of a previous
+            # start codon).
 
             if ( $1
                  && (    ( $cur_strand eq '-' )
@@ -298,19 +270,21 @@ sub getCDS {
             ########################################
             # If we don't match the lower regex:
             #
-            # If this is the '+' strand, that means
-            # that this is a valid stop - either a
-            # stop codon or the end of the string.
-            # Reset the lower bound in this case.
+            # If this is the positive strand, that
+            # means that this is a valid stop -
+            # either a stop codon or the end of the
+            # string. Reset the lower bound in this
+            # case.
             #
-            # On the '-' strand, we only care if
-            # we matched a start. In that case, do
-            # the compute and update.
+            # On the negative strand, we only care
+            # if we matched a start. In that case,
+            # do the compute and update.
+            #
             # Another option would be to mark where
             # the start is, and only do the compute
             # when we find a stop.
 
-            elsif ( ( $cur_strand eq '+' ) || $2 ) {
+            elsif ( ( $cur_strand == 1 ) || $2 ) {
 
                 # Move on if the lower is unset
                 next unless ( defined $lowers[$frame] );
@@ -324,7 +298,7 @@ sub getCDS {
                 }
 
                 # Reset lower if we found a stop
-                undef $lowers[$frame] if ( $cur_strand eq '+' );
+                undef $lowers[$frame] if ( $cur_strand == 1 );
             }
         }
     }
@@ -332,168 +306,70 @@ sub getCDS {
     return [ $best_strand, $lower, $upper ];
 }
 
-=item translateORF()
+=item find()
 
-=item $pepRef = $translator->translateORF($sequence);
+=item $positions = $translator->find( $seqRef, $type, $strand )
 
-Translates the longest ORF.
-
-Example:
-
- $pepRef = $translator->translateORF(\'tagtaatag');
-
-=cut
-
-sub translateORF {
-    my $self = shift;
-
-    my ( $seqRef, $strand )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => '-+',
-                          regex   => qr/^[+-]{1,2}$/
-                        }
-        );
-
-    DEBUG('translateORF called');
-
-    my $boundary = $self->getORF( $seqRef, $strand );
-    return
-        $self->translate( seqRef => $seqRef,
-                          strand => $$boundary[0],
-                          lower  => $$boundary[1],
-                          upper  => $$boundary[2]
-        );
-}
-
-=item translateCDS()
-
-=item $peptide = $translator->translateCDS($seqRef);
-
-Translates the longest CDS.
-
-Example:
-
- $pepRef = $translator->translateCDS(\'atgaaatag');
-
+Find codons of given type (i.e. start or stop) in the sequence. Note, the
+second two parameters are passed directly to regex, so please look there for
+more information. Returns an arrayref containing all the locations of all those
+codons.
 
 =cut
 
-sub translateCDS {
+sub find {
     my $self = shift;
 
-    my ( $seqRef, $strand )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => '-+',
-                          regex   => qr/^[+-]{1,2}$/
-                        }
-        );
+    my @seqRef = splice @_, 0, 1;
+    my $seqRef = validate_pos(@seqRef, { type => SCALARREF });
 
-    DEBUG('translateCDS called');
+    my $regex = $self->regex( @_ );
 
-    my $boundary = $self->getCDS( $seqRef, $strand );
-    return
-        $self->translate( seqRef => $seqRef,
-                          strand => $$boundary[0],
-                          lower  => $$boundary[1],
-                          upper  => $$boundary[2]
-        );
-}
+    my @positions;
 
-=item findStarts
-
-=cut
-
-sub findStarts {
-    my $self = shift;
-
-    my ( $seqRef, $strand )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => '+',
-                          regex   => qr/^[+-]{1,2}$/
-                        }
-        );
-
-    my $startRegex
-        = $strand eq '+' ? $$self{startRegex} : $$self{rc_startRegex};
-
-    my @starts;
-
-    while ( $$seqRef =~ /(?=($startRegex))/g ) {
-        push @starts, pos $$seqRef;
+    while ( $$seqRef =~ /(?=($regex))/g ) {
+        push @positions, pos $$seqRef;
     }
 
-    return \@starts;
+    return \@positions;
 }
 
-=item findStops
+=item regex()
+
+=item $regex = $translator->regex( $type, $strand )
+
+Returns a regular expression of a certain type for a given strand. These are
+'start', 'stop', 'lower' and 'upper.' Lower and upper match the lower and upper
+end of a CDS for a given strand (i.e. on the positive strand, lower matches
+the start, and upper matches the stop).
 
 =cut
 
-sub findStops {
+sub regex {
     my $self = shift;
-
-    my ( $seqRef, $strand )
+    my ( $type, $strand )
         = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => '+',
-                          regex   => qr/^[+-]{1,2}$/
+                        { regex => qr/^(?:start|stop|lower|upper)$/ },
+                        { default => 1,
+                          regex   => qr/^[+-]?1$/
                         }
         );
 
-    my $stopRegex = $strand eq '+' ? $$self{stopRegex} : $$self{rc_stopRegex};
+    my $prefix = $strand == 1 ? '' : 'rc_';
 
-    my @stops;
+    if    ( $type eq 'lower' ) { $type = $strand == 1  ? 'start' : 'stop' }
+    elsif ( $type eq 'upper' ) { $type = $strand == -1 ? 'start' : 'stop' }
 
-    while ( $$seqRef =~ /(?=($stopRegex))/g ) {
-        push @stops, pos $$seqRef;
+    unless ( defined $self->{"${prefix}${type}Regex"} ) {
+        my $regex = join '|',
+            ( $type eq 'start'
+              ? keys %{ $self->{"${prefix}starts"} }
+              : @{ $$self{"${prefix}reverse"}{'*'} }
+            );
+        $self->{"${prefix}${type}Regex"} = qr/$regex/;
     }
 
-    return \@stops;
-}
-
-=item startRegex
-
-=cut
-
-sub startRegex {
-    my $self = shift;
-    my ($strand)
-        = validate_pos( @_,
-                        { default => '+',
-                          regex   => qr/^[+-]{1,2}$/
-                        }
-        );
-
-    my $prefix = $strand eq '+' ? '' : 'rc_';
-    unless ( defined $self->{"${prefix}startRegex"} ) {
-        my $regex = join '|', keys %{ $self->{"${prefix}starts"} };
-        $self->{"${prefix}startRegex"} = qr/$regex/;
-    }
-    return $self->{"${prefix}startRegex"};
-}
-
-=item stopRegex
-
-=cut
-
-sub stopRegex {
-    my $self = shift;
-    my ($strand)
-        = validate_pos( @_,
-                        { default => '+',
-                          regex   => qr/^[+-]{1,2}$/
-                        }
-        );
-
-    my $prefix = $strand eq '+' ? '' : 'rc_';
-    unless ( defined $self->{"${prefix}stopRegex"} ) {
-        my $regex     = join '|', @{ $$self{"${prefix}reverse"}{'*'} };
-        $self->{"${prefix}stopRegex"} = qr/$regex/;
-    }
-    return $self->{"${prefix}stopRegex"};
+    return $self->{"${prefix}${type}Regex"};
 }
 
 1;
