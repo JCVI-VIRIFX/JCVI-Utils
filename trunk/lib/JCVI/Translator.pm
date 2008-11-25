@@ -407,8 +407,8 @@ sub printTable {
             $b[1] = $_;
             foreach (@NUCS) {
                 $b[2] = $_;
-                my $aa = $self->translateCodon( join( '', @b ), '+' );
-                my $st = $self->translateCodon( join( '', @b ), '+', 1 );
+                my $aa = $self->translateCodon( join( '', @b ), 1 );
+                my $st = $self->translateCodon( join( '', @b ), 1, 1 );
 
                 unless (    ( $aa eq 'X' )
                          && ( $st eq '-' ) )
@@ -519,32 +519,15 @@ sub translate {
                        regex   => qr/^[+-]?1$/,
                        type    => SCALAR
            },
-           lower => {
-               default  => 0,
-               callback => {
-                   'Lower not an integer' => sub { $_[0] !~ /\D/ },
-                   'Lower out of range'   => sub {
-                       (     ( $_[0] >= 0 )
-                          && ( $_[0] <= length ${ $_[1]{seqRef} } ) );
-                   },
-               }
-           },
-           upper => {
-               default  => -1,
-               callback => {
-                   'Upper not an integer' => sub { $_[0] !~ /\D/ },
-                   'Upper out of range'   => sub {
-                       (     ( $_[0] >= $_[1]{lower} )
-                          && ( $_[0] <= length ${ $_[1]{seqRef} } ) );
-                       }
-               }
-           },
+           upper  => 0,
+           lower  => { default => 0 },
            seqRef => {
                optional => 1,
                type     => SCALARREF,
                callback => {
-                   'Sequence contains invalid nucleotides' =>
-                       sub { ${ $_[0] } !~ /[^$nucMatch]/ }
+                   'Sequence contains invalid nucleotides' => sub {
+                       ${ $_[0] } !~ /[^$nucMatch]/;
+                       }
                }
            },
            partial   => 0,
@@ -552,32 +535,12 @@ sub translate {
         }
     );
 
-    ########################################
-    # Do some further validation.
-
-VALIDATION: {
-        if ( $params{seqRef} ) {
-            cleanDNA( $params{seqRef} ) unless ( $params{sanitized} );
-        }
-        else {
-            $params{seqRef} = $$self{seqRef};
-        }
-        $params{sanitized} = 1;
-
-        unless ( defined $params{seqRef} ) {
-            my $logger = get_logger();
-            $logger->logdie('Sequence undefined');
-        }
-
-        $params{upper} = length ${ $params{seqRef} }
-            if ( $params{upper} == -1 );
-
-        if ( $params{upper} - $params{lower} < 3 ) {
-            WARN(
-                "Region too short to be translated: $params{lower} $params{upper}"
+    unless ( defined $params{upper} ) {
+        $params{upper} =
+            length( defined $params{seqRef}
+                    ? ${ $params{seqRef} }
+                    : $self->{seqRef}
             );
-            return \'';
-        }
     }
 
     $params{exons} = [ [ $params{lower}, $params{upper} ] ];
@@ -690,7 +653,30 @@ sub translateExons {
                        }
                }
            },
-           exons     => { type => ARRAYREF },
+           exons => {
+               type      => ARRAYREF,
+               callbacks => {
+                   'Bound not an integer' => sub {
+                       foreach my $bounds ( @{ $_[0] } ) {
+                           foreach my $bound (@$bounds) {
+                               return 0 unless ( $bound =~ /^\d+$/ );
+                           }
+                       }
+                       return 1;
+                   },
+                   'Bound out of range' => sub {
+                       foreach my $bounds ( @{ $_[0] } ) {
+                           foreach my $bound (@$bounds) {
+                               return 0
+                                   unless ( ( $bound >= 0 )
+                                    && ( $bound <= length ${ $_[1]{seqRef} } )
+                                   );
+                           }
+                       }
+                       return 1;
+                       }
+               }
+           },
            partial   => 0,
            sanitized => 0
         }
@@ -712,7 +698,7 @@ VALIDATION: {
 
         unless ( defined $seqRef ) {
             my $logger = get_logger();
-            $logger->logdie('Sequence undefined');
+            $logger->logcroak('Sequence undefined');
         }
     }
 
@@ -737,7 +723,7 @@ VALIDATION: {
         $offset    = -3;
     }
 
-    my $peptide;
+    my $peptide  = '';
     my $leftover = '';
 
 EXON: foreach my $i ( 0 .. $#{ $params{exons} } ) {
@@ -889,26 +875,26 @@ been merged into translateCodon.
 Example:
 
  $residue = $translator->translateCodon('atg');
- $residue = $translator->translateCodon('tty', '+');
- $residue = $translator->translateCodon('cat', '-', 1);
+ $residue = $translator->translateCodon('tty', 1);
+ $residue = $translator->translateCodon('cat', -1, 1);
 
 =cut
 
 sub translateCodon {
     my $self = shift;
 
-    my ( $codon, $strand, $start ) = validate_pos(
-        @_,
-        { regex => qr/^${nucMatch}{3}$/ },
-        {  default => 1,
-           regex   => qr/^[+-]?1$/,
-           type    => SCALAR
-        },
-        { default => 0,
-          regex   => qr/^[01]$/,
-          type    => SCALAR
-        }
-    );
+    my ( $codon, $strand, $start )
+        = validate_pos( @_,
+                        { regex => qr/^${nucMatch}{3}$/ },
+                        { default => 1,
+                          regex   => qr/^[+-]?1$/,
+                          type    => SCALAR
+                        },
+                        { default => 0,
+                          regex   => qr/^[01]$/,
+                          type    => SCALAR
+                        }
+        );
     $codon = uc $codon;
 
     my $prefix = $strand == 1 ? '' : 'rc_';
