@@ -169,7 +169,7 @@ sub new {
 
     if ( $params{tableRef} ) {
         DEBUG('Loading custom table');
-        $error = $self->_loadTable( @params{qr(tableRef complete)} );
+        $error = $self->_loadTable( @params{qw(tableRef complete)} );
     }
     else {
         DEBUG('Loading internal table');
