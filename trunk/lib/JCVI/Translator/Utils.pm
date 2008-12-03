@@ -169,7 +169,7 @@ CDS.
 
 Will return [1, 0, 9].
 
-Strict is a newly added feature which controls how strictly getCDS functions.
+Strict controls how strictly getCDS functions.
 There are 3 levels of strictness, enumerated 0, 1 and 2. 2 is the most strict,
 and in that mode, a region will only be considered a CDS if both the start and
 stop is found. In strict level 1, if a start is found, but no stop is present
@@ -234,7 +234,7 @@ sub getCDS {
         # a stop was matched.
         #
         # If strict mode is at level 2, we don't
-        # test CDSs trailing off the end
+        # tes is a newly added feature which t CDSs trailing off the end
         # of the molecule
 
         my $regex = qr/(?=($lowerRegex)|($upperRegex))/;
@@ -321,9 +321,9 @@ sub find {
     my $self = shift;
 
     my @seqRef = splice @_, 0, 1;
-    my $seqRef = validate_pos(@seqRef, { type => SCALARREF });
+    my $seqRef = validate_pos( @seqRef, { type => SCALARREF } );
 
-    my $regex = $self->regex( @_ );
+    my $regex = $self->regex(@_);
 
     my @positions;
 
@@ -370,6 +370,56 @@ sub regex {
     }
 
     return $self->{"${prefix}${type}Regex"};
+}
+
+=item nonstop
+
+=item $frames = $translator->nonstop( $seqRef, $strand )
+
+Returns the frames that contain no stop codons for the sequence. $strand is
+optional and defaults to 0. Frames are 1, 2, 3, -1, -2, -3.
+
+ 3    ---->
+ 2   ----->
+ 1  ------>
+    -------
+ -1 <------
+ -2 <-----
+ -3 <----
+
+Example:
+
+ $frames = $translator->nonstop(\'TACGTTGGTTAAGTT');     # [-1, -3, 2, 3]
+ $frames = $translator->nonstop(\'TACGTTGGTTAAGTT', 1);  # [2, 3]
+ $frames = $translator->nonstop(\'TACGTTGGTTAAGTT', -1); # [-1, -3]
+
+=cut
+
+sub nonstop {
+    my $self = shift;
+    my ( $seqRef, $strand )
+        = validate_pos( @_,
+                        { type => SCALARREF },
+                        { default => 0,
+                          regex   => qr/^[+-]?1$/
+                        }
+        );
+
+    my @frames;
+    foreach my $cur_strand ( $strand == 0 ? ( -1, 1 ) : ($strand) ) {
+        my $stop = $self->regex( 'stop', $cur_strand );
+
+        foreach my $frame ( 0 .. 2 ) {
+            my $regex = $cur_strand == 1
+                ? qr/^.{$frame}(?:.{3})*$stop/
+                : qr/$stop(?:.{3})*.{$frame}$/;
+
+            push @frames, ( $frame + 1 ) * $cur_strand
+                unless ( $$seqRef =~ m/$regex/ );
+        }
+    }
+    
+    return \@frames;
 }
 
 1;
