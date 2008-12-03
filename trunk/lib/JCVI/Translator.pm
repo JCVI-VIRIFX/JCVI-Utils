@@ -1,9 +1,9 @@
 # Translator
 #
-# $Author: kgalinsk $
-# $Date: 2008-11-05 17:42:05 -0500 (Wed, 05 Nov 2008) $
-# $Revision: 23841 $
-# $HeadURL: http://isvn.tigr.org/ANNOTATION/DM_Scripts/lib/JCVI/Translator.pm $
+# $Author$
+# $Date$
+# $Revision$
+# $HeadURL$
 
 =head1 NAME
 
