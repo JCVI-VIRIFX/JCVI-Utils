@@ -70,7 +70,8 @@ package JCVI::Translator;
 use strict;
 use warnings;
 
-our $VERSION = '0.3.1';
+use version;
+our $VERSION = qv('0.3.1');
 
 use Log::Log4perl qw(:easy);
 use Params::Validate qw(:all);
@@ -264,7 +265,7 @@ sub _loadTable {
 
     DEBUG("_loadTable called");
 
-    ( $$self{info}{id} ) = $$tableRef =~ /id\s+(\d+)/i;
+    ( $self->{info}{id} ) = $$tableRef =~ /id\s+(\d+)/i;
 
     ########################################
     # Extract each name, massage, and push
@@ -276,7 +277,7 @@ sub _loadTable {
             s/\s+$//;
             s/\n/ /g;
             s/\s{2,}/ /g;
-            push @{ $$self{info}{names} }, $_ if $_;
+            push @{ $self->{info}{names} }, $_ if $_;
         }
     }
 
@@ -302,16 +303,16 @@ sub _loadTable {
         my $rc_codon_ref = reverseComplement( \$codon );
 
         if ( $residue ne 'X' ) {
-            $$self{forward}{$codon}            = $residue;
-            $$self{rc_forward}{$$rc_codon_ref} = $residue;
+            $self->{forward}{$codon}            = $residue;
+            $self->{rc_forward}{$$rc_codon_ref} = $residue;
         }
         if ( ( $start ne '-' ) ) {
-            $$self{starts}{$codon}            = $start;
-            $$self{rc_starts}{$$rc_codon_ref} = $start;
+            $self->{starts}{$codon}            = $start;
+            $self->{rc_starts}{$$rc_codon_ref} = $start;
         }
 
-        push @{ $$self{reverse}{$residue} },    $codon;
-        push @{ $$self{rc_reverse}{$residue} }, $$rc_codon_ref;
+        push @{ $self->{reverse}{$residue} },    $codon;
+        push @{ $self->{rc_reverse}{$residue} }, $$rc_codon_ref;
     }
 
     ########################################
@@ -322,7 +323,7 @@ sub _loadTable {
 
     $self->printTable() unless $complete;
 
-    return $$self{forward} ? 0 : 'Translation table could not be loaded';
+    return $self->{forward} ? 0 : 'Translation table could not be loaded';
 }
 
 =item loadSequence
@@ -356,7 +357,7 @@ sub loadSequence {
     TRACE( 'Sequence starts with ' . substr $$seqRef, 0, 5 );
     TRACE( 'Sequence length is ' . length $$seqRef );
 
-    $$self{seqRef} = $seqRef;
+    $self->{seqRef} = $seqRef;
 }
 
 =item clearSequence
@@ -372,7 +373,7 @@ sub clearSequence {
 
     DEBUG('clearSequence called');
 
-    undef $$self{seqRef};
+    undef $self->{seqRef};
 }
 
 =item printTable()
@@ -391,7 +392,7 @@ sub printTable {
 
     DEBUG('printTable called');
 
-    my $names = join( '; ', @{ $$self{info}{names} } );
+    my $names = join( '; ', @{ $self->{info}{names} } );
     my ( $residues, $starts, @base, @b );
 
     my @NUCS = split '', $nucs;
@@ -425,7 +426,7 @@ sub printTable {
         join( "\n",
               '{',
               qq(name "$names" ,),
-              qq(id $$self{info}{id} ,),
+              qq(id $self->{info}{id} ,),
               qq(ncbieaa  "$residues",),
               qq(sncbieaa "$starts"),
               map( {"-- Base$_  $base[$_ - 1]"} ( 1 .. 3 ) ),
@@ -645,7 +646,7 @@ sub translateExons {
                        type  => SCALAR
            },
            seqRef => {
-               default  => $$self{seqRef},
+               default  => $self->{seqRef},
                type     => SCALARREF,
                callback => {
                    'Sequence contains invalid nucleotides' => sub {
@@ -693,7 +694,7 @@ VALIDATION: {
             cleanDNA($seqRef) unless ( $params{sanitized} );
         }
         else {
-            $seqRef = $$self{seqRef};
+            $seqRef = $self->{seqRef};
         }
 
         unless ( defined $seqRef ) {
@@ -808,12 +809,12 @@ EXON: foreach my $i ( 0 .. $#{ $params{exons} } ) {
             # a regular codon.
 
             if ( $params{partial} ) {
-                $peptide .= $$self{ $prefix . 'forward' }{$leftover};
+                $peptide .= $self->{ $prefix . 'forward' }{$leftover};
             }
             else {
                 $peptide 
-                    = $$self{ $prefix . 'starts' }{$leftover}
-                    || $$self{ $prefix . 'forward' }{$leftover}
+                    = $self->{ $prefix . 'starts' }{$leftover}
+                    || $self->{ $prefix . 'forward' }{$leftover}
                     || 'X';
                 $params{partial} = 1;
             }
@@ -850,7 +851,7 @@ EXON: foreach my $i ( 0 .. $#{ $params{exons} } ) {
         # the execution.
 
         for ( $start = $start; $start != $stop; $start += $increment ) {
-            $peptide .= $$self{ $prefix . 'forward' }
+            $peptide .= $self->{ $prefix . 'forward' }
                 { substr( $$seqRef, $start, 3 ) } || 'X';
         }
     }
@@ -914,7 +915,7 @@ sub translateCodon {
     }
     TRACE("Using $table table");
 
-    return $$self{$table}{$codon} if ( defined $$self{$table}{$codon} );
+    return $self->{$table}{$codon} if ( defined $self->{$table}{$codon} );
 
     ########################################
     # Handles codons with degenerate
@@ -980,8 +981,8 @@ sub translateCodon {
 
         my $rc_codon_ref = reverseComplement( \$codon );
 
-        $$self{$table}{$codon} = $consensus;
-        $$self{ 'rc_' . $table }{$$rc_codon_ref} = $consensus;
+        $self->{$table}{$codon} = $consensus;
+        $self->{ 'rc_' . $table }{$$rc_codon_ref} = $consensus;
 
         ########################################
         # In the case of regular codons, push
@@ -989,8 +990,8 @@ sub translateCodon {
         # translation array.
 
         unless ($start) {
-            push @{ $$self{reverse}{$consensus} },    $codon;
-            push @{ $$self{rc_reverse}{$consensus} }, $$rc_codon_ref;
+            push @{ $self->{reverse}{$consensus} },    $codon;
+            push @{ $self->{rc_reverse}{$consensus} }, $$rc_codon_ref;
         }
 
         return $consensus;
