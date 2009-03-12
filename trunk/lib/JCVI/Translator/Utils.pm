@@ -89,13 +89,14 @@ Output:
 sub getORF {
     my $self = shift;
 
-    my ( $seqRef, $strand )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => 0,
-                          regex   => qr/^[+-]?[01]$/
-                        }
-        );
+    my ( $seqRef, $strand ) = validate_pos(
+        @_,
+        { type => SCALARREF },
+        {
+            default => 0,
+            regex   => qr/^[+-]?[01]$/
+        }
+    );
 
     DEBUG('getORF called');
 
@@ -127,7 +128,7 @@ sub getORF {
             $$seqRef =~ /(?=
 				($stopRegex)|.{0,2}$
 			    )/gx
-            )
+          )
         {
             my $curUpper = pos $$seqRef;
             my $frame    = $curUpper % 3;
@@ -191,16 +192,18 @@ Output:
 sub getCDS {
     my $self = shift;
 
-    my ( $seqRef, $strand, $strict )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => 0,
-                          regex   => qr/^[+-]?[01]$/
-                        },
-                        { default => 1,
-                          regex   => qr/^[012]$/
-                        }
-        );
+    my ( $seqRef, $strand, $strict ) = validate_pos(
+        @_,
+        { type => SCALARREF },
+        {
+            default => 0,
+            regex   => qr/^[+-]?[01]$/
+        },
+        {
+            default => 1,
+            regex   => qr/^[012]$/
+        }
+    );
 
     DEBUG('getCDS called');
 
@@ -214,13 +217,10 @@ sub getCDS {
         # Initialize
         my @lowers;
         if ( $cur_strand == 1 ) {
-            @lowers = ( $strict != 0 ? map {undef} ( 0 .. 2 ) : ( 0 .. 2 ) );
+            @lowers = ( $strict != 0 ? map { undef } ( 0 .. 2 ) : ( 0 .. 2 ) );
         }
         else {
-            @lowers = ( $strict == 2
-                        ? map {undef} ( 0 .. 2 )
-                        : ( 0 .. 2 )
-            );
+            @lowers = ( $strict == 2 ? map { undef } ( 0 .. 2 ) : ( 0 .. 2 ) );
         }
 
         ########################################
@@ -259,14 +259,14 @@ sub getCDS {
             # overwrite the location of a previous
             # start codon).
 
-            if ( $1
-                 && (    ( $cur_strand eq '-' )
-                      || ( !defined $lowers[$frame] ) )
-                )
-            {
-                $lowers[$frame] = $position;
-            }
+            if ($1) {
+                if (   ( $cur_strand == -1 )
+                    || ( !defined $lowers[$frame] ) )
 
+                {
+                    $lowers[$frame] = $position;
+                }
+            }
             ########################################
             # If we don't match the lower regex:
             #
@@ -284,10 +284,17 @@ sub getCDS {
             # the start is, and only do the compute
             # when we find a stop.
 
-            elsif ( ( $cur_strand == 1 ) || $2 ) {
+            else {
 
-                # Move on if the lower is unset
-                next unless ( defined $lowers[$frame] );
+                # Move on if:
+                # We are on the - strand
+                # Didn't match a start codon
+                # And strict isn't 2
+                # OR
+                # The lower bound isn't defined (only happens on + strand)
+                next
+                  if ( ( ( $cur_strand == -1 ) && ( !$2 ) && ( $strict != 2 ) )
+                    || ( !defined $lowers[$frame] ) );
 
                 $position += length $2 if ($2);
 
@@ -347,13 +354,14 @@ the start, and upper matches the stop).
 
 sub regex {
     my $self = shift;
-    my ( $type, $strand )
-        = validate_pos( @_,
-                        { regex => qr/^(?:start|stop|lower|upper)$/ },
-                        { default => 1,
-                          regex   => qr/^[+-]?1$/
-                        }
-        );
+    my ( $type, $strand ) = validate_pos(
+        @_,
+        { regex => qr/^(?:start|stop|lower|upper)$/ },
+        {
+            default => 1,
+            regex   => qr/^[+-]?1$/
+        }
+    );
 
     my $prefix = $strand == 1 ? '' : 'rc_';
 
@@ -362,10 +370,11 @@ sub regex {
 
     unless ( defined $self->{"${prefix}${type}Regex"} ) {
         my $regex = join '|',
-            ( $type eq 'start'
-              ? keys %{ $self->{"${prefix}starts"} }
-              : @{ $$self{"${prefix}reverse"}{'*'} }
-            );
+          (
+            $type eq 'start'
+            ? keys %{ $self->{"${prefix}starts"} }
+            : @{ $$self{"${prefix}reverse"}{'*'} }
+          );
         $self->{"${prefix}${type}Regex"} = qr/$regex/;
     }
 
@@ -397,28 +406,30 @@ Example:
 
 sub nonstop {
     my $self = shift;
-    my ( $seqRef, $strand )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => 0,
-                          regex   => qr/^[+-]?1$/
-                        }
-        );
+    my ( $seqRef, $strand ) = validate_pos(
+        @_,
+        { type => SCALARREF },
+        {
+            default => 0,
+            regex   => qr/^[+-]?1$/
+        }
+    );
 
     my @frames;
     foreach my $cur_strand ( $strand == 0 ? ( -1, 1 ) : ($strand) ) {
         my $stop = $self->regex( 'stop', $cur_strand );
 
         foreach my $frame ( 0 .. 2 ) {
-            my $regex = $cur_strand == 1
-                ? qr/^.{$frame}(?:.{3})*$stop/
-                : qr/$stop(?:.{3})*.{$frame}$/;
+            my $regex =
+              $cur_strand == 1
+              ? qr/^.{$frame}(?:.{3})*$stop/
+              : qr/$stop(?:.{3})*.{$frame}$/;
 
             push @frames, ( $frame + 1 ) * $cur_strand
-                unless ( $$seqRef =~ m/$regex/ );
+              unless ( $$seqRef =~ m/$regex/ );
         }
     }
-    
+
     return \@frames;
 }
 
