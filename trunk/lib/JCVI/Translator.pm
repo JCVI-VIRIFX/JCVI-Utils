@@ -70,19 +70,20 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.4.0_01');
+our $VERSION = qv('0.4.0_02');
 
-use base qw(Class::Accessor::Faster);
+use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names table starts reverse));
 
 use Log::Log4perl qw(:easy);
-use Params::Validate qw(validate_with);
+use Params::Validate qw(validate validate_pos validate_with);
 
 use JCVI::DNATools qw(
   %degenerate_map
   $degen_match
   $nucs
   $nuc_match
+  $nuc_fail
   cleanDNA
   reverse_complement
 );
@@ -165,7 +166,7 @@ sub new {
     my $start_pos = tell DATA;
 
     # Set up regular expression for searching.
-    my $match = ( $type == 'id' ) ? qr/id $id\b/ : qr/name ".*$id.*"/i;
+    my $match = ( $type eq 'id' ) ? qr/id $id\b/ : qr/name ".*$id.*"/i;
 
     # Go through every internal table until it matches on id or name.
     my $found = 0;
@@ -360,6 +361,8 @@ sub _new {
             $self->$func->[$rc] = {};
         }
     }
+
+    return $self;
 }
 
 =head2 bootstrap
@@ -542,54 +545,56 @@ sub translate {
     ( $seq_ref, $p[0] ) = validate_pos(
         @_,
         {
-            type     => Params::Validate::SCALARREF,
-            callback => {
+            type      => Params::Validate::SCALARREF,
+            callbacks => {
                 'Sequence contains invalid nucleotides' => sub {
-                    ${ $_[0] } !~ /[^$nuc_match]/;
+                    ${ $_[0] } !~ /$nuc_fail/;
                   }
             }
         },
-        { type => Params::Validate::HASHREF, optional => 1 }
+        { type => Params::Validate::HASHREF, default => {} }
     );
 
-    my %p = validate_with(
-        params => \@p,
-        spec   => {
+    my %p = validate(
+        @p,
+        {
             strand => {
                 default => $DEFAULT_STRAND,
                 regex   => qr/^[+-]?1$/,
                 type    => Params::Validate::SCALAR
             },
             lower => {
-                default => 0,
-                regex   => qr/^[0-9]+$/,
-                type    => Params::Validate::SCALAR,
-                callbacks {
+                default   => 0,
+                regex     => qr/^[0-9]+$/,
+                type      => Params::Validate::SCALAR,
+                callbacks => {
                     'lower >= 0'          => sub { $_[0] >= 0 },
                     'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
                 }
             },
             upper => {
-                default => length($$seq_ref),
-                regex   => qr/^[0-9]+$/,
-                type    => Params::Validate::SCALAR,
-                callbacks {
+                default   => length($$seq_ref),
+                regex     => qr/^[0-9]+$/,
+                type      => Params::Validate::SCALAR,
+                callbacks => {
                     'upper >= 0'          => sub { $_[0] >= 0 },
                     'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
                 }
             },
             partial5  => { default => $DEFAULT_PARTIAL5 },
             sanitized => { default => $DEFAULT_SANITIZED }
-        },
-        allow_extra => 1
+        }
     );
 
-    return undef if ( $p{upper} < $p{lower} );
+    if ( $p{upper} < $p{lower} ) {
+        FATAL "Upper $p{upper} < Lower $p{lower}";
+        die "Upper $p{upper} < Lower $p{lower}";
+    }
 
     cleanDNA($seq_ref) unless ( $p{sanitized} );
 
     my $prep = $self->_prepare( $p{strand} );
-    my $ends = $self->_endpoints( @p{q(strand lower upper)} );
+    my $ends = $self->_endpoints( @p{qw(strand lower upper)} );
 
     my $peptide = '';
 
@@ -693,16 +698,16 @@ sub translate_exons {
     ( $seq_ref, $exons, $p[0] ) = validate_pos(
         @_,
         {
-            default  => $self->{seq_ref},
-            type     => Params::Validate::SCALARREF,
-            callback => {
+            default   => $self->{seq_ref},
+            type      => Params::Validate::SCALARREF,
+            callbacks => {
                 'Sequence contains invalid nucleotides' => sub {
                     ${ $_[0] } !~ /[^$nuc_match]/;
                   }
             }
         },
         { type => Params::Validate::ARRAYREF },
-        { type => Params::Validate::HASHREF }
+        { type => Params::Validate::HASHREF, default => {} }
     );
 
     validate_pos(
@@ -853,10 +858,10 @@ sub _endpoints {
     my ( $strand, $lower, $upper ) = @_;
 
     if ( $strand == 1 ) {
-        return ( $lower, $upper - ( ( $upper - $lower ) % 2 ) );
+        return [ $lower, $upper - ( ( $upper - $lower ) % 3 ) ];
     }
     else {
-        return [ $upper - 3, $lower - 3 + ( ( $upper - $lower ) % 2 ) ];
+        return [ $upper - 3, $lower - 3 + ( ( $upper - $lower ) % 3 ) ];
     }
 }
 
