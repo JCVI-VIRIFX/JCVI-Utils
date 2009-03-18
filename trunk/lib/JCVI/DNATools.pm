@@ -166,16 +166,16 @@ sub randomDNA {
     return \$seq;
 }
 
-=item reverse_complement()
+=head2 reverse_complement()
 
-=item $reverse_ref = reverse_complement($seq_ref);
+    my $reverse_ref = reverse_complement($seq_ref);
 
 Finds the reverse complement of the sequence and handles
 degenerate nucleotides.
 
 Example:
 
- $reverse_ref = reverse_complement(\'act');
+    $reverse_ref = reverse_complement(\'act');
 
 =cut
 
