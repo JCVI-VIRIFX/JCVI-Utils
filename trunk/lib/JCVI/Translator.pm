@@ -1,4 +1,4 @@
-# Translator
+# JCVI::Translator
 #
 # $Author$
 # $Date$
@@ -18,10 +18,10 @@ use JCVI::Translator;
     my $translator = new JCVI::Translator( 12, 'id' );
     my $translator = new JCVI::Translator( 'Yeast Mitochondrial', 'name' );
     my $translator = new JCVI::Translator( 'mito', 'name' );
-    
+
     my $translator = custom JCVI::Translator( \$custom_table );
     my $translator = custom JCVI::Translator( \$custom_table, 1 );
-    
+
     $translator->translate( \$seq );
     $translator->translate( \$seq, { strand => 1 } );
     $translator->translate( \$seq, { strand => -1 } );
@@ -365,7 +365,7 @@ sub _new {
 =head2 bootstrap
 
     $translator->bootstrap();
-    
+
 Bootstrap the translation table. Find every possible translation, even those
 that involve degenerate nucleotides or ambiguous amino acids.
 
