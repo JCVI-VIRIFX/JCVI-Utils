@@ -31,19 +31,19 @@ our $VERSION = qv('0.1.5');
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
-  %ambiguousForward
-  %ambiguousMap
-  %aaAbbrev
+  %ambiguous_forward
+  %ambiguous_map
+  %aa_abbrev
 
   $aas
-  $aaMatch
-  $aaFail
-  $strictAAs
-  $strictMatch
-  $strictFail
+  $aa_match
+  $aa_fail
+  $strict_aas
+  $strict_match
+  $strict_fail
   $ambigs
-  $ambigMatch
-  $ambigFail
+  $ambig_match
+  $ambig_fail
 );
 
 our %EXPORT_TAGS = (
@@ -63,7 +63,7 @@ map of what each ambiguous amino acid means.
 
 =cut
 
-our %ambiguousForward = (
+our %ambiguous_forward = (
     A => 'B',
     B => 'B',
     D => 'B',
@@ -75,13 +75,13 @@ our %ambiguousForward = (
     Z => 'Z'
 );
 
-our %ambiguousMap = (
+our %ambiguous_map = (
     B => [ 'A', 'D' ],
     J => [ 'I', 'L' ],
     Z => [ 'E', 'Q' ]
 );
 
-=head2 %aaAbrev
+=head2 %aa_abbrev
 
 Hash from one letter code for amino acids to the three
 letter abbreviations. Includes ambiguous amino acids as well
@@ -89,7 +89,7 @@ as selenocysteine and pyrrolysine.
 
 =cut
 
-our %aaAbbrev = (
+our %aa_abbrev = (
     A => 'Ala',
     B => 'Asx',
     C => 'Cys',
@@ -129,16 +129,16 @@ regular expressions.
 =cut
 
 our $aas     = '*ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-our $aaMatch = qr/[$aas]/i;
-our $aaFail  = qr/[^$aas]/i;
+our $aa_match = qr/[$aas]/i;
+our $aa_fail  = qr/[^$aas]/i;
 
-our $strictAAs   = '*ACDEFGHIKLMNPQRSTVWXY';
-our $strictMatch = qr/[$strictAAs]/i;
-our $strictFail  = qr/[^$strictAAs]/i;
+our $strict_aas   = '*ACDEFGHIKLMNPQRSTVWXY';
+our $strict_match = qr/[$strict_aas]/i;
+our $strict_fail  = qr/[^$strict_aas]/i;
 
 our $ambigs     = 'BJZ';
-our $ambigMatch = qr/[$ambigs]/i;
-our $ambigFail  = qr/[^$ambigs]/i;
+our $ambig_match = qr/[$ambigs]/i;
+our $ambig_fail  = qr/[^$ambigs]/i;
 
 1;
 
