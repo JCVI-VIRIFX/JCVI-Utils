@@ -79,15 +79,15 @@ use Log::Log4perl qw(:easy);
 use Params::Validate qw(validate_with);
 
 use JCVI::DNATools qw(
-  %degenerateMap
-  $degenMatch
+  %degenerate_map
+  $degen_match
   $nucs
-  $nucMatch
+  $nuc_match
   cleanDNA
-  reverseComplement
+  reverse_complement
 );
 
-use JCVI::AATools qw(%ambiguousForward);
+use JCVI::AATools qw(%ambiguous_forward);
 
 my $DEFAULT_ID        = 1;
 my $DEFAULT_TYPE      = 'id';
@@ -294,7 +294,7 @@ sub custom {
         my $start = uc( chop $starts );
         my $codon = uc( chop($base1) . chop($base2) . chop($base3) );
 
-        my $rc_codon_ref = reverseComplement( \$codon );
+        my $rc_codon_ref = reverse_complement( \$codon );
 
         if ( $residue ne 'X' ) {
             $forward_hash->{$codon}            = $residue;
@@ -334,7 +334,7 @@ sub add_translation {
         { default => 0, regex => qr/^[01]$/ }
     );
 
-    my $rc_codon_ref = reverseComplement( \$codon );
+    my $rc_codon_ref = reverse_complement( \$codon );
 
     my $table = $start ? 'starts' : 'table';
     $self->$table->[$rc]->{codon} = $residue;
@@ -545,7 +545,7 @@ sub translate {
             type     => Params::Validate::SCALARREF,
             callback => {
                 'Sequence contains invalid nucleotides' => sub {
-                    ${ $_[0] } !~ /[^$nucMatch]/;
+                    ${ $_[0] } !~ /[^$nuc_match]/;
                   }
             }
         },
@@ -697,7 +697,7 @@ sub translate_exons {
             type     => Params::Validate::SCALARREF,
             callback => {
                 'Sequence contains invalid nucleotides' => sub {
-                    ${ $_[0] } !~ /[^$nucMatch]/;
+                    ${ $_[0] } !~ /[^$nuc_match]/;
                   }
             }
         },
@@ -917,7 +917,7 @@ sub translate_codon {
 
     my ( $codon, $strand, $start ) = validate_pos(
         @_,
-        { regex => qr/^${nucMatch}{3}$/ },
+        { regex => qr/^${nuc_match}{3}$/ },
         {
             default => 1,
             regex   => qr/^[+-]?1$/,
@@ -960,7 +960,7 @@ sub _translate_codon {
     my $table = $_[0];
 
     # Check for base case: no degenerate nucleotides; we can't unroll further.
-    unless ( $codon =~ /($degenMatch)/ ) {
+    unless ( $codon =~ /($degen_match)/ ) {
         return $table->{$codon};
     }
 
@@ -971,7 +971,7 @@ sub _translate_codon {
     my $nuc = $1;
 
     # Replace the nucleotide with every possiblity from degenerate map hash.
-    foreach ( @{ $degenerateMap{$nuc} } ) {
+    foreach ( @{ $degenerate_map{$nuc} } ) {
         my $new_codon = $codon;
         $new_codon =~ s/$nuc/$_/;
 
@@ -992,13 +992,13 @@ sub _translate_codon {
         # Otherwise, return undef (consensus could not be reached).
         if ( $residue ne $consensus ) {
             if (
-                   ( defined $ambiguousForward{$residue} )
-                && ( defined $ambiguousForward{$consensus} )
-                && ( $ambiguousForward{$residue} eq
-                    $ambiguousForward{$consensus} )
+                   ( defined $ambiguous_forward{$residue} )
+                && ( defined $ambiguous_forward{$consensus} )
+                && ( $ambiguous_forward{$residue} eq
+                    $ambiguous_forward{$consensus} )
               )
             {
-                $consensus = $ambiguousForward{$consensus};
+                $consensus = $ambiguous_forward{$consensus};
             }
             else {
                 return undef;
