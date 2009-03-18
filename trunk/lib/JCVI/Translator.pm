@@ -9,59 +9,58 @@
 
 JCVI::Translator - JCVI Translator object
 
-=head1 SYNOPSES
+=head1 SYNOPSIS
 
- use JCVI::Translator;
+use JCVI::Translator;
 
- my $translator = new Translator(
-			   id => $id,
-                           name => $name,
-                           tableRef => $tableRef
-			   );
+    my $translator = new JCVI::Translator;
+    my $translator = new JCVI::Translator(11);
+    my $translator = new JCVI::Translator( 12, 'id' );
+    my $translator = new JCVI::Translator( 'Yeast Mitochondrial', 'name' );
+    my $translator = new JCVI::Translator( 'mito', 'name' );
+    
+    my $translator = custom JCVI::Translator( \$custom_table );
+    my $translator = custom JCVI::Translator( \$custom_table, 1 );
+    
+    $translator->translate( \$seq );
+    $translator->translate( \$seq, { strand => 1 } );
+    $translator->translate( \$seq, { strand => -1 } );
 
 =head1 DESCRIPTION
 
-JCVI::Translator tries to be a robust translator object
-featuring translation tables based off the the ones provided
-by NCBI
+JCVI::Translator tries to be a robust translator object featuring translation
+tables based off the the ones provided by NCBI
 (http://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi).
-Key features include the ability to handle degenerate
-nucleotides and to translate to ambiguous amino acids.
+Key features include the ability to handle degenerate nucleotides and to
+translate to ambiguous amino acids.
 
-The way to work with JCVI::Translator is you create a new
-translator using an internal translation table or a provided
-one, and from there you can perform translations and other
-functions requiring knowledge of the translation table.
+The way to work with JCVI::Translator is you create a new translator using an
+internal translation table or a provided one, this module will translate DNA
+sequences for you.
 
-Translator uses interbase numbering. See below for the
-difference between interbase numbering and traditional
-numbering methods:
+Translator uses interbase coordinates. See below for the difference between
+interbase coordinates and traditional numbering methods:
 
- Traditional   1 2 3 4
-               A C G T ...
- Interbase    0 1 2 3 4
+    Traditional   1 2 3 4
+                  A C G T ...
+    Interbase    0 1 2 3 4
 
-Conversion methods between the two methods can depend upon
-what you are trying to do, but in general, just add 1 to the
-start base for interbase numbering to get the boundaries
-for traditional numbering (i.e. 0-4 in interbase numbering
-corresponds to bases 1-4).
+Conversion methods between the two methods can depend upon what you are trying
+to do, but the simple way to do this is:
+
+    strand = 3' end <=> 5' end
+    lower  = min( 5' end, 3' end ) - 1
+    lower  = max( 5' end, 3' end )
 
 For logging, it uses Log::Log4Perl. This needs to be
-initialized to work. See http://log4perl.sourceforge.net/.
+initialized to work.
 
 For parameter validation, uses Params::Validate. This
 introduces a bit of overhead, however, for scripts that are
 fully tested, validation can be disabled. See the
 Params::Validate documentation.
 
-=head1 AUTHOR
-
-Kevin Galinsky, <kgalinsk@jcvi.org>
-
-=head1 FUNCTIONS
-
-=over
+=head1 METHODS
 
 =cut
 
@@ -71,157 +70,105 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.3.1');
+our $VERSION = qv('0.4.0_01');
+
+use base qw(Class::Accessor::Faster);
+__PACKAGE__->mk_accessors(qw(id names table starts reverse));
 
 use Log::Log4perl qw(:easy);
-use Params::Validate qw(:all);
+use Params::Validate qw(validate_with);
 
-use JCVI::DNATools qw(%degenerateMap
-    $degenMatch
-    $nucs
-    $nucMatch
-    cleanDNA
-    reverseComplement);
+use JCVI::DNATools qw(
+  %degenerateMap
+  $degenMatch
+  $nucs
+  $nucMatch
+  cleanDNA
+  reverseComplement
+);
 
 use JCVI::AATools qw(%ambiguousForward);
 
-my $DEFAULT_ID = 1;
+my $DEFAULT_ID        = 1;
+my $DEFAULT_TYPE      = 'id';
+my $DEFAULT_COMPLETE  = 0;
+my $DEFAULT_BOOTSTRAP = 1;
+my $DEFAULT_STRAND    = 1;
+my $DEFAULT_PARTIAL5  = 0;
+my $DEFAULT_SANITIZED = 0;
 
-=item new()
+=head2 new
 
-=item $translator = new Translator(%params);
+    my $translator = new JCVI::Translator($id, $type);
 
-Creates a new translator using the given parameters. If no
-parameters are given, the standard translation table will be
-used. The parameters are:
+This method creates a translator by loading a translation table from the
+internal list. Pass an ID and the type of ID. By default, it will load the
+tranlation table with id 1. The type of ID may be "id" or "name," which
+correspond to the numeric id of the translation table or the long name of the
+translation table. For instance, below are the headers for the first 3
+translation tables.
 
- id - id of an internal translation table
- name - name or part of the name of an internal table
- tableRef - a reference to a table string
- complete - does the table string contain all degenerate nucs?
+    {
+    name "Standard" ,
+    name "SGC0" ,
+    id 1 ,
+    ...
+    },
+    {
+    name "Vertebrate Mitochondrial" ,
+    name "SGC1" ,
+    id 2 ,
+    ...
+    },
+    {
+    name "Yeast Mitochondrial" ,
+    name "SGC2" ,
+    id 3 ,
+    ...
+    },
+    ...
 
-table takes precedence, and the format of the table string should
-reflect that of the internal tables.
+By default, the "Standard" translation table will be loaded. You may create a
+translator with this table by calling any the following:
 
- name "(\w+(; )?)+"
- name "(\w+(; )?)+"
- id \d+
- ncbieaa "\w+"
- sncbieaa "[M-]+"
- base1 [ACGT]+
- base2 [ACGT]+
- base3 [ACGT]+
+    my $t = new JCVI::Translator();                   # default table
+    my $t = new JCVI::Translator(1);                  # explicitly set id
+    my $t = new JCVI::Translator(1, 'id');            # set id and type
+    my $t = new JCVI::Translator('Standard', 'name'); # set name
+    my $t = new JCVI::Translator('SGC0', 'name');     # alternate name
+    my $t = new JCVI::Translator('standard', 'name'); # not case-sensitive
+    my $t = new JCVI::Translator('stan', 'name');     # partial match ok
 
-Examples:
+Following up on the partial matches, you can specify a translation table using:
 
- $translator = new Translator(); # Default translator
- $translator = new Translator('id' => 4);
- $translator = new Translator('name' => 'mitochondrial');
- $translator = new Translator('table' =>
-               'name "All Alanines; All the Time"
-                id 9000
-                ncbieaa  "AAAAAAAA"
-                sncbieaa "----M---"
-                base1 AAAAAAAA
-                base2 AACCGGTT
-                base3 ACACACAC'
-               );
+    my $t = new JCVI::Translator('mitochondrial', 'name');
+
+This will use translation table with ID 2, "Vertebrate Mitochondrial," because
+that is the first match.
 
 =cut
 
 sub new {
-    my $type = shift;
+    TRACE('new called');
 
-    my %params = validate( @_,
-                           {  id => { default => $DEFAULT_ID,
-                                      regex   => qr/^\d+$/
-                              },
-                              name => { optional => 1,
-                                        type     => SCALAR
-                              },
-                              tableRef => { optional => 1,
-                                            type     => SCALARREF
-                              },
-                              complete => { default => 0,
-                                            regex   => qr/^[01]$/
-                              }
-                           }
+    my $class = shift;
+
+    my ( $id, $type ) = validate_pos(
+        @_,
+        { default => $DEFAULT_ID },
+        { default => $DEFAULT_TYPE, regex => qr/id|name/ }
     );
 
-    my $self = { seqRef => undef };
-    bless $self, $type;
+    TRACE( uc($type) . ': ' . $id );
 
-    DEBUG("New $type");
+    # Get the beginning DATA so that we can seek back to it
+    my $start_pos = tell DATA;
 
-    TRACE("Params:");
-    map { TRACE("$_ => $params{$_}") } keys %params;
+    # Set up regular expression for searching.
+    my $match = ( $type == 'id' ) ? qr/id $id\b/ : qr/name ".*$id.*"/i;
 
-    my $error;
-
-    ########################################
-    # If a tableref is passed, go directly
-    # to loadTable. Else, go to
-    # loadInternalTable which will then call
-    # loadTable.
-
-    ########################################
-    # Maybe this should be split into two
-    # constructors?
-
-    if ( $params{tableRef} ) {
-        DEBUG('Loading custom table');
-        $error = $self->_loadTable( @params{qw(tableRef complete)} );
-    }
-    else {
-        DEBUG('Loading internal table');
-        $error = $self->_loadInternalTable( @params{qw(id name)} );
-    }
-
-    if ($error) {
-        ERROR("Error: $error");
-        return $error;
-    }
-    else {
-        DEBUG("New $type successful");
-        return $self;
-    }
-}
-
-=item _loadInternalTable()
-
-=item $err = $translator->_loadInternalTable($id, $name);
-
-This method loads a table from the internal list. Gets
-called from "new" if no table string is provided. Passed
-either $id or $name. Not recommend to pass both, but if both
-are passed, then whichever matches first is used.
-
-=cut
-
-sub _loadInternalTable {
-    my $self = shift;
-
-    my ( $id, $name ) = validate_pos( @_, { regex => qr/^\d+$/ }, 0 );
-
-    ########################################
-    # Set up regular expression match for
-    # searching.
-
-    my $match = $name ? qr/name ".*$name.*"/i : qr/id $id/i;
-
-    DEBUG("_loadInternalTable called");
-    TRACE("ID $id")     if ( defined $id );
-    TRACE("Name $name") if ( defined $name );
-
+    # Go through every internal table until it matches on id or name.
     my $found = 0;
-
-    # Get the beginning DATA input
-    my $startPos = tell DATA;
-
-    ########################################
-    # Go through every internal table until
-    # it matches on id or name.
-
     local $/ = "}";
     local $_;
     while (<DATA>) {
@@ -231,71 +178,118 @@ sub _loadInternalTable {
         }
     }
 
-    # Reset DATA input
-    seek DATA, $startPos, 0;
+    # Reset DATA
+    seek DATA, $start_pos, 0;
 
-    ########################################
-    # Call loadTable with internal table.
-    # Complete is set to 1.
-    return $found
-        ? $self->_loadTable( \$_, 1 )
-        : 'Translation table not found';
+    # Call custom with internal table. Complete is set to 1.
+    return $class->custom( \$_, 1 ) if ($found);
+
+    # Internal table not matched.
+    ERROR("Table with $type of $id not found");
+    return undef;
 }
 
-=item _loadTable()
+=head2 custom()
 
-=item $err = $translator->loadTable($tableRef, $complete);
+    my $translator = $translator->custom($table_ref, $complete);
 
-Loads a table based off a passed table reference for custom
-translation tables. Gets called from "new" if a table string
-is provided. Loads degenerate nucs if $complete isn't set.
+Create a translator table based off a passed table reference for custom
+translation tables. Loads degenerate nucleotides if $complete isn't set (this
+can take a little time). The format of the translation table should reflect
+those of the internal tables:
+
+    name "(\w+(; )?)+"
+    name "(\w+(; )?)+"
+    id \d+
+    ncbieaa "\w{$x}"
+    sncbieaa "[M-]{$x}"
+    base1 [ACGT]{$x}
+    base2 [ACGT]{$x}
+    base3 [ACGT]{$x}
+
+Examples:
+
+    $translator = new Translator(
+        table_ref => \'name "All Alanines; All the Time"
+                       id 9000
+                       ncbieaa  "AAAAAAAA"
+                       sncbieaa "----M---"
+                       base1 AAAAAAAA
+                       base2 AACCGGTT
+                       base3 ACACACAC'
+    );
+
+    $translator = new Translator(
+        table_ref => \$table,
+        complete  => 1
+    );
 
 =cut
 
-sub _loadTable {
-    my $self = shift;
+our $TABLE_REGEX = qr/
+                        ( (?:name\s+".+?".*?) + )
+                        id\s+(\d+).*
+                        ncbieaa\s+"([a-z*]+)".*
+                        sncbieaa\s+"([a-z-]+)".*
+                        base1\s+([a-z]+).*
+                        base2\s+([a-z]+).*
+                        base3\s+([a-z]+).*
+                     /isx;
 
-    my ( $tableRef, $complete )
-        = validate_pos( @_,
-                        { type => SCALARREF },
-                        { default => 0,
-                          regex   => qr/^[01]$/
-                        }
-        );
+sub custom {
+    TRACE('custom called');
 
-    DEBUG("_loadTable called");
+    my $class = shift;
 
-    ( $self->{info}{id} ) = $$tableRef =~ /id\s+(\d+)/i;
+    my ( $table_ref, $complete ) = validate_pos(
+        @_,
+        { type => Params::Validate::SCALARREF },
+        {
+            default => $DEFAULT_COMPLETE,
+            regex   => qr/^[01]$/
+        }
+    );
 
-    ########################################
-    # Extract each name, massage, and push
-    # it onto names array
-    while ( $$tableRef =~ /name\s+"(.+?)"/gis ) {
+    unless ( $$table_ref =~ $TABLE_REGEX ) {
+        ERROR( 'Translation table is in invalid format', $$table_ref );
+        return undef;
+    }
+
+    my $names    = $1;
+    my $id       = $2;
+    my $residues = $3;
+    my $starts   = $4;
+    my $base1    = $5;
+    my $base2    = $6;
+    my $base3    = $7;
+
+    my $self = $class->_new();
+
+    $self->id($1);
+
+    # Extract each name, massage, and push it onto names array
+    while ( $names =~ /"(.+?)"/gis ) {
         my @names = split( /;/, $1 );
+        local $_;
         foreach (@names) {
             s/^\s+//;
             s/\s+$//;
             s/\n/ /g;
             s/\s{2,}/ /g;
-            push @{ $self->{info}{names} }, $_ if $_;
+            push @{ $self->names }, $_ if $_;
         }
     }
 
-    ########################################
-    # Pull each string to be used for
-    # translation table generation.
+    my $forward_hash    = $self->table->[0];
+    my $rc_forward_hash = $self->table->[1];
 
-    my ($residues) = $$tableRef =~ /ncbieaa.+?([a-z*]+)/i;
-    my ($starts)   = $$tableRef =~ /sncbieaa.+?([a-z-]+)/i;
-    my ($base1)    = $$tableRef =~ /base1.+?([a-z]+)/i;
-    my ($base2)    = $$tableRef =~ /base2.+?([a-z]+)/i;
-    my ($base3)    = $$tableRef =~ /base3.+?([a-z]+)/i;
+    my $starts_hash    = $self->starts->[0];
+    my $rc_starts_hash = $self->starts->[1];
 
-    ########################################
-    # Chop is used to efficiently get the
-    # last character from each string; like
-    # pop, but for strings.
+    my $reverse_hash    = $self->reverse->[0];
+    my $rc_reverse_hash = $self->reverse->[1];
 
+    # Chop is used to efficiently get the last character from each string
     while ( my $residue = uc( chop $residues ) ) {
         my $start = uc( chop $starts );
         my $codon = uc( chop($base1) . chop($base2) . chop($base3) );
@@ -303,171 +297,186 @@ sub _loadTable {
         my $rc_codon_ref = reverseComplement( \$codon );
 
         if ( $residue ne 'X' ) {
-            $self->{forward}{$codon}            = $residue;
-            $self->{rc_forward}{$$rc_codon_ref} = $residue;
+            $forward_hash->{$codon}            = $residue;
+            $rc_forward_hash->{$$rc_codon_ref} = $residue;
         }
         if ( ( $start ne '-' ) ) {
-            $self->{starts}{$codon}            = $start;
-            $self->{rc_starts}{$$rc_codon_ref} = $start;
+            $starts_hash->{$codon}            = $start;
+            $rc_starts_hash->{$$rc_codon_ref} = $start;
         }
 
-        push @{ $self->{reverse}{$residue} },    $codon;
-        push @{ $self->{rc_reverse}{$residue} }, $$rc_codon_ref;
+        push @{ $reverse_hash->{$residue} },    $codon;
+        push @{ $rc_reverse_hash->{$residue} }, $$rc_codon_ref;
     }
 
-    ########################################
-    # Use the printTable command to fill in
-    # the gaps in the translation table
-    # unless the table has been marked as
-    # complete.
+    # Unroll the translation table unless it has been marked complete
+    $self->bootstrap() unless ($complete);
 
-    $self->printTable() unless $complete;
-
-    return $self->{forward} ? 0 : 'Translation table could not be loaded';
+    return $self;
 }
 
-=item loadSequence
+=head2 add_translation
 
-=item $translator->loadSequence(\$seqRef);
+    $translator->add_translation($codon, $residue, $reverse_complement, $start);
 
-Translator can cache sequences internally to be translated
-from later. This can save time when translating from the
-same sequence multiple times, but not all the ranges are
-available immediately.
+Add a codon-to-residue translation to the translation table.
 
 =cut
 
-sub loadSequence {
+sub add_translation {
+    TRACE('add_translation called');
+
     my $self = shift;
 
-    my ( $seqRef, $sanitized ) = validate_pos(
-        @_,
-        {  type     => SCALARREF,
-           callback => {
-               'Sequence contains invalid nucleotides' =>
-                   sub { ${ $_[0] } !~ /[^$nucMatch]/ }
-           }
-        },
-        0
+    my ( $codon, $residue, $rc, $start ) = validate_pos(
+        @_, 1, 1,
+        { default => 0, regex => qr/^[01]$/ },
+        { default => 0, regex => qr/^[01]$/ }
     );
 
-    cleanDNA($seqRef) unless ($sanitized);
+    my $rc_codon_ref = reverseComplement( \$codon );
 
-    DEBUG('loadSequence called');
-    TRACE( 'Sequence starts with ' . substr $$seqRef, 0, 5 );
-    TRACE( 'Sequence length is ' . length $$seqRef );
+    my $table = $start ? 'starts' : 'table';
+    $self->$table->[$rc]->{codon} = $residue;
+    $self->$table->[ ( $rc + 1 ) % 2 ]->{$$rc_codon_ref} = $residue;
 
-    $self->{seqRef} = $seqRef;
+    push @{ $self->reverse->[$rc]->{residue} }, $codon;
+    push @{ $self->reverse->[ ( $rc + 1 ) % 2 ]->{residue} }, $$rc_codon_ref;
 }
 
-=item clearSequence
+sub _new {
+    my $class = shift;
+    my $self  = $class->SUPER::new(
+        {
+            names   => [],
+            table   => [],
+            starts  => [],
+            reverse => []
+        }
+    );
 
-=item $translator->clearSequence(\$seqRef);
+    foreach my $func (qw(table starts reverse)) {
+        foreach my $rc ( 0 .. 1 ) {
+            $self->$func->[$rc] = {};
+        }
+    }
+}
 
-Clear cached sequences.
+=head2 bootstrap
+
+    $translator->bootstrap();
+    
+Bootstrap the translation table. Find every possible translation, even those
+that involve degenerate nucleotides or ambiguous amino acids.
 
 =cut
 
-sub clearSequence {
+sub bootstrap {
+    TRACE('bootstrap called');
+
     my $self = shift;
 
-    DEBUG('clearSequence called');
+    my @nucs = split //, $nucs;
 
-    undef $self->{seqRef};
-}
-
-=item printTable()
-
-=item $tableString = $translator->printTable();
-
-Returns the complete, absolute version of the table string.
-Unrolls all degenerates and everything. Due to the caching
-nature of translateCodon, this routine will also store all
-possibilities for translation.
-
-=cut
-
-sub printTable {
-    my $self = shift;
-
-    DEBUG('printTable called');
-
-    my $names = join( '; ', @{ $self->{info}{names} } );
-    my ( $residues, $starts, @base, @b );
-
-    my @NUCS = split '', $nucs;
-
-    ########################################
-    # Rigorous loop unrolls the nucleotide
-    # table. This causes the subroutine to
-    # take a while to run.
-
-    foreach (@NUCS) {
-        $b[0] = $_;
-        foreach (@NUCS) {
-            $b[1] = $_;
-            foreach (@NUCS) {
-                $b[2] = $_;
-                my $aa = $self->translateCodon( join( '', @b ), 1 );
-                my $st = $self->translateCodon( join( '', @b ), 1, 1 );
-
-                unless (    ( $aa eq 'X' )
-                         && ( $st eq '-' ) )
-                {
-                    $residues .= $aa;
-                    $starts   .= $st;
-                    $base[$_] .= $b[$_] foreach ( 0 .. 2 );
-                }
+    # Loop through every nucleotide combination and run _translate_codon on
+    # each.
+    foreach my $n1 (@nucs) {
+        foreach my $n2 (@nucs) {
+            foreach my $n3 (@nucs) {
+                $self->_translate_codon( $n1 . $n2 . $n3,
+                    $self->table->[0], 0, 0 );
+                $self->_translate_codon( $n1 . $n2 . $n3,
+                    $self->starts->[0], 0, 1 );
             }
         }
     }
-
-    return
-        join( "\n",
-              '{',
-              qq(name "$names" ,),
-              qq(id $self->{info}{id} ,),
-              qq(ncbieaa  "$residues",),
-              qq(sncbieaa "$starts"),
-              map( {"-- Base$_  $base[$_ - 1]"} ( 1 .. 3 ) ),
-              '}' );
 }
 
-=item translate()
+=head2 table_string
 
-=item $pepRef = $translator->translate(%params);
+    $table_string_ref = $translator->table_string($bootstrap);
 
-The basic function of this module. Translate the specified
-region of the sequence and return a reference to the
-translated string. The parameters are:
+Returns the table string. $bootstrap specifies whether or not this table should
+try to bootstrap itself using the bootstrap function above.
 
- strand - 1 or -1; mandatory
- lower  - integer between 0 and length; optional
-          defaults to 0
- upper  - integer between 0 and length; optional
-          defaults to length
- seqRef - reference to a string; optional
- sequence - string; optional
- partial - 0 or 1; optional
+=cut
 
-Translator uses interbase coordinates. lower and upper are
-optional parameters such that:
+sub table_string {
+    TRACE('table_string called');
 
- 0 <= lower <= upper <= length
+    my $self = shift;
 
-Translator will log and die if those conditions are not
-satisfied. strand is the only mandatory parameter. sequence
-and seqRef are both optional. If both are provided, sequence
-takes priority. If neither is provided, then Translator will
-use a previously loaded sequence. If no sequence has been
-loaded, translator will log and die.
+    my $bootstrap =
+      validate_pos( @_,
+        { default => $DEFAULT_BOOTSTRAP, regex => qr/^[01]$/ } );
 
-Partial sets whether or not the sequence is a 5' partial.By
-default, partial is taken to be false, and the translator
-will try to translate the first codon as if it is a start
-codon. If you specify partial, the translator will skip
-that step.
+    $self->bootstrap() if ($bootstrap);
 
+    my $names = join( '; ', @{ $self->names } );
+    my ( $residues, $starts );
+    my @base = ( 0 .. 2 );
+
+    my @NUCS = split '', $nucs;
+
+    my $prev;
+    foreach my $codon (
+        grep ( ( $_ ne $prev ) && ( $prev = $_ ),
+            sort { $a cmp $b } (
+                keys( %{ $self->table->[0] } ),
+                keys( %{ $self->starts->[0] } )
+              ) )
+      )
+    {
+        my $residue = $self->table->[0]->{$codon}  || 'X';
+        my $start   = $self->starts->[0]->{$codon} || '-';
+
+        $residues .= $residue;
+        $starts   .= $start;
+        $base[ -$_ ] .= chop $codon foreach ( 1 .. 3 );
+    }
+
+    my $string = join( "\n",
+        '{',
+        qq(name "$names" ,),
+        qq(id $self->{info}{id} ,),
+        qq(ncbieaa  "$residues",),
+        qq(sncbieaa "$starts"),
+        map( {"-- Base$_  $base[$_ - 1]"} ( 1 .. 3 ) ),
+        '}' );
+
+    return \$string;
+}
+
+=head2 translate()
+
+    $pep_ref = $translator->translate($seq_ref, \%params);
+
+The basic function of this module. Translate the specified region of the
+sequence (passed as $seq_ref) and return a reference to the translated string.
+The parameters are:
+
+    strand    - 1 or -1; optional - defaults to 1
+    lower     - integer between 0 and length; optional - defaults to 0
+    upper     - integer between 0 and length; optional - defaults to length
+    partial5  - 0 or 1; optional - defaults to 0
+    sanitized - 0 or 1; optional - defaults to 0
+
+Translator uses interbase coordinates. lower and upper are optional parameters
+such that:
+
+    0 <= lower <= upper <= length
+
+Translator will log and die if those conditions are not satisfied.
+
+partial5 sets whether or not the sequence is a 5' partial. By default, partial5
+is taken to be false  and the translator will try to translate the first codon
+as if it were a start codon. You can specify that the sequence is 5' partial
+and the translator will skip that step.
+
+sanitized is a flag translator know that this sequence has been stripped of
+whitespace and that all the codons are capitalized. Otherwise, translator will
+do that in order to speed up the translation process
+(see JCVI::DNATools::cleanDNA).
 
 To translate the following:
 
@@ -475,287 +484,275 @@ To translate the following:
   C G C G C A G G A
     ---------->
 
- $pepRef = $translator->translate(seqRef => \$sequence,
-                                  strand => 1,
-                                  lower  => 1,
-                                  upper  => 7);
+    $pep_ref = $translator->translate(
+        \$sequence,
+        {
+            strand => 1,
+            lower  => 1,
+            upper  => 7
+        }
+    );
 
  0 1 2 3 4 5 6 7 8 9
   C G C G C A G G A
       <----------
 
- $pepRef = $translator->translate(seqRef => \$sequence,
-                                  strand => -1,
-                                  lower  => 2,
-                                  upper  => 8);
+    $pep_ref = $translator->translate(
+        \$sequence,
+        {
+            strand => -1,
+            lower  => 2,
+            upper  => 8
+        }
+    );
 
 Examples:
 
- $pepRef = $translator->translate(strand => -1);
+    my $pep_ref = $translator->translate( \'acttgacgt' );
 
- $pepRef = $translator->translate(strand => 1,
-                                  seqRef => \'acttgacgt');
+    my $pep_ref = $translator->translate( \'acttgacgt', { strand => -1 } );
 
- $pepRef = $translator->translate(strand => -1,
-                                  sequence => 'acttgacgt',
-                                  lower => 2,
-                                  upper => 5);
+    my $pep_ref = $translator->translate(
+        \'acttgacgt',
+        {
+            strand => -1,
+            lower  => 2,
+            upper  => 5
+        }
+    );
 
- $pepRef = $translator->translate(strand => +1,
-                                  seqRef => \'acttgacgt',
-                                  lower => 0,
-                                  upper => 8,
-                                  partial => 1);
+    my $pep_ref = $translator->translate(
+        \'acttgacgt',
+        {
+            strand   => 1,
+            lower    => 0,
+            upper    => 8,
+            partial5 => 0
+        }
+    );
 
 =cut
 
 sub translate {
     my $self = shift;
 
-    DEBUG('translate called');
+    TRACE('translate called');
 
-    my %params = validate(
+    my ( $seq_ref, @p );
+    ( $seq_ref, $p[0] ) = validate_pos(
         @_,
-        {  strand => { default => 1,
-                       regex   => qr/^[+-]?1$/,
-                       type    => SCALAR
-           },
-           upper  => 0,
-           lower  => { default => 0 },
-           seqRef => {
-               optional => 1,
-               type     => SCALARREF,
-               callback => {
-                   'Sequence contains invalid nucleotides' => sub {
-                       ${ $_[0] } !~ /[^$nucMatch]/;
-                       }
-               }
-           },
-           partial   => 0,
-           sanitized => 0
-        }
+        {
+            type     => Params::Validate::SCALARREF,
+            callback => {
+                'Sequence contains invalid nucleotides' => sub {
+                    ${ $_[0] } !~ /[^$nucMatch]/;
+                  }
+            }
+        },
+        { type => Params::Validate::HASHREF, optional => 1 }
     );
 
-    unless ( defined $params{upper} ) {
-        $params{upper} =
-            length( defined $params{seqRef}
-                    ? ${ $params{seqRef} }
-                    : $self->{seqRef}
-            );
-    }
+    my %p = validate_with(
+        params => \@p,
+        spec   => {
+            strand => {
+                default => $DEFAULT_STRAND,
+                regex   => qr/^[+-]?1$/,
+                type    => Params::Validate::SCALAR
+            },
+            lower => {
+                default => 0,
+                regex   => qr/^[0-9]+$/,
+                type    => Params::Validate::SCALAR,
+                callbacks {
+                    'lower >= 0'          => sub { $_[0] >= 0 },
+                    'lower <= seq_length' => sub { $_[0] <= length($$seq_ref) }
+                }
+            },
+            upper => {
+                default => length($$seq_ref),
+                regex   => qr/^[0-9]+$/,
+                type    => Params::Validate::SCALAR,
+                callbacks {
+                    'upper >= 0'          => sub { $_[0] >= 0 },
+                    'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
+                }
+            },
+            partial5  => { default => $DEFAULT_PARTIAL5 },
+            sanitized => { default => $DEFAULT_SANITIZED }
+        },
+        allow_extra => 1
+    );
 
-    $params{exons} = [ [ $params{lower}, $params{upper} ] ];
-    delete $params{lower};
-    delete $params{upper};
+    return undef if ( $p{upper} < $p{lower} );
 
-    return $self->translateExons(%params);
+    cleanDNA($seq_ref) unless ( $p{sanitized} );
+
+    my $prep = $self->_prepare( $p{strand} );
+    my $ends = $self->_endpoints( @p{q(strand lower upper)} );
+
+    my $peptide = '';
+
+    $self->_start( $seq_ref, \$peptide, $ends, $prep ) unless ( $p{partial5} );
+    $self->_translate( $seq_ref, \$peptide, $ends, $prep );
+
+    return \$peptide;
 }
 
-=item translate6()
+=head2 translate6()
 
-=item $pepRefs = $translator->translate6($seqRef);
+    my $pep_refs = $translator->translate6($seq_ref);
 
 Translate the sequence in every possible way. Returns an
 array reference of all the translations. The
 structure of the array is as follows:
 
- 0: ---------->
- 1:  --------->
- 2:   -------->
-    NNNN...NNNN
- 3: <----------
- 4: <---------
- 5: <--------
-
-I should stress that $$pepRefs[x] is not a sequence, but a
-reference to a sequence. So to access a sequence, you need
-to do the following:
-
- $sequence = ${$$pepRefs[x]}
+    0: ---------->
+    1:  --------->
+    2:   -------->
+       NNNN...NNNN
+    3: <----------
+    4: <---------
+    5: <--------
 
 Example:
 
- $pepRefs = $translator->translate6(\'acttgacgt');
+    $pep_refs = $translator->translate6(\'acttgacgt');
 
 Output:
 
- $pepRefs = [$pepRef0,
-             $pepRef1,
-             $pepRef2,
-             $reversePepRef0,
-             $reversePepRef1,
-             $reversePepRef2]
+    $pep_refs = [
+                    $pep1,
+                    $pep2,
+                    $pep3,
+                    $reverse_pep1,
+                    $reverse_pep2,
+                    $reverse_pep3
+                ]
 
 =cut
 
 sub translate6 {
-    my ( $self, $seqRef, $sanitized ) = @_;
+    my ( $self, $seq_ref, $sanitized ) = @_;
 
-    DEBUG("translate6 called");
+    TRACE('translate6 called');
 
-    cleanDNA($seqRef) unless ($sanitized);
+    cleanDNA($seq_ref) unless ($sanitized);
 
-    my @pepRefs;
+    my @peptides;
 
-    push @pepRefs,
-        $self->translate( seqRef    => $seqRef,
-                          lower     => $_,
-                          strand    => 1,
-                          sanitized => 1
-        ) foreach ( 0 .. 2 );
-    push @pepRefs,
-        $self->translate( seqRef    => $seqRef,
-                          upper     => length($$seqRef) - $_,
-                          strand    => -1,
-                          sanitized => 1
-        ) foreach ( 0 .. 2 );
+    {
+        my $prep = $self->_prepare(1);
+        foreach ( 0 .. 2 ) {
+            my $ends = $self->_endpoints( 1, $_, length($$seq_ref) );
+            $self->_start( $seq_ref, \$peptides[$_], $ends, $prep );
+            $self->_translate( $seq_ref, \$peptides[$_], $ends, $prep );
+        }
+    }
+    {
+        my $prep = $self->_prepare(-1);
+        foreach ( 0 .. 2 ) {
+            my $ends = $self->_endpoints( -1, 0, length($$seq_ref) - $_ );
+            $self->_start( $seq_ref, \$peptides[ 3 + $_ ], $ends, $prep );
+            $self->_translate( $seq_ref, \$peptides[ 3 + $_ ], $ends, $prep );
+        }
+    }
 
-    return \@pepRefs;
+    return \@peptides;
 }
 
-=item translateExons()
+=head2 translate_exons()
 
-=item $pepRef = translateExons(%params);
+    $pep_ref = translate_exons($str_ref, $exons_array_ref, \%params);
 
 Translate a gene spanning multiple exons. Paramters are:
 
- strand: 1 or -1; mandatory
- seqRef: reference to sequence; optional if one is loaded
- partial: '0' or '1'; optional, defaults to '0'
+    strand: 1 or -1; mandatory
+    artial: '0' or '1'; optional, defaults to '0'
 
 Input:
 
- $exonRangesRef = [
-                   [$start0, $stop0],
-                   [$start1, $stop1],
-                    ...
-                  ]
+    $exons_array_ref = [
+                            [$start0, $stop0],
+                            [$start1, $stop1],
+                            ...
+                       ];
 
 Example:
 
- $pepRef = translateExons(\'actgcat', [ [0,2], [3,7] ], 1);
+    $pep_ref = translate_exons(\'actgcat', [ [0,2], [3,7] ]);
 
 =cut
 
-sub translateExons {
+sub translate_exons {
+    TRACE('translate_exons called');
+
     my $self = shift;
 
-    my %params = validate(
+    my ( $seq_ref, $exons, @p );
+    ( $seq_ref, $exons, $p[0] ) = validate_pos(
         @_,
-        {  strand => { regex => qr/^[+-]?1$/,
-                       type  => SCALAR
-           },
-           seqRef => {
-               default  => $self->{seqRef},
-               type     => SCALARREF,
-               callback => {
-                   'Sequence contains invalid nucleotides' => sub {
-                       ${ $_[0] } !~ /[^$nucMatch]/;
-                       }
-               }
-           },
-           exons => {
-               type      => ARRAYREF,
-               callbacks => {
-                   'Bound not an integer' => sub {
-                       foreach my $bounds ( @{ $_[0] } ) {
-                           foreach my $bound (@$bounds) {
-                               return 0 unless ( $bound =~ /^\d+$/ );
-                           }
-                       }
-                       return 1;
-                   },
-                   'Bound out of range' => sub {
-                       foreach my $bounds ( @{ $_[0] } ) {
-                           foreach my $bound (@$bounds) {
-                               return 0
-                                   unless ( ( $bound >= 0 )
-                                    && ( $bound <= length ${ $_[1]{seqRef} } )
-                                   );
-                           }
-                       }
-                       return 1;
-                       }
-               }
-           },
-           partial   => 0,
-           sanitized => 0
+        {
+            default  => $self->{seq_ref},
+            type     => Params::Validate::SCALARREF,
+            callback => {
+                'Sequence contains invalid nucleotides' => sub {
+                    ${ $_[0] } !~ /[^$nucMatch]/;
+                  }
+            }
+        },
+        { type => Params::Validate::ARRAYREF },
+        { type => Params::Validate::HASHREF }
+    );
+
+    validate_pos(
+        @$exons,
+        {
+            type      => Params::Validate::ARRAYREF,
+            callbacks => {
+                'Bound not an integer' => sub {
+                    foreach my $bound ( @{ $_[0] } ) {
+                        return 0 unless ( $bound =~ /^\d+$/ );
+                    }
+                    return 1;
+                },
+                'Bound out of range' => sub {
+                    foreach my $bound ( @{ $_[0] } ) {
+                        return 0
+                          unless ( ( $bound >= 0 )
+                            && ( $bound <= length $$seq_ref ) );
+                    }
+                    return 1;
+                },
+                'Bound not in order' => sub {
+                    return $_[0][0] <= $_[0][1];
+                  }
+            }
+        } x @$exons
+    );
+
+    my %p = validate(
+        @p,
+        {
+            strand => {
+                default => $DEFAULT_STRAND,
+                regex   => qr/^[+-]?1$/,
+                type    => Params::Validate::SCALAR
+            },
+            partial5  => { default => $DEFAULT_PARTIAL5 },
+            sanitized => { default => $DEFAULT_SANITIZED }
         }
     );
 
-    my $seqRef;
+    my @exons = sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] } @$exons;
 
-    ########################################
-    # Do some further validation.
-
-VALIDATION: {
-        if ( $params{seqRef} ) {
-            $seqRef = $params{seqRef};
-            cleanDNA($seqRef) unless ( $params{sanitized} );
-        }
-        else {
-            $seqRef = $self->{seqRef};
-        }
-
-        unless ( defined $seqRef ) {
-            my $logger = get_logger();
-            $logger->logcroak('Sequence undefined');
-        }
-    }
-
-    DEBUG('translateExons called');
-    TRACE("Strand is $params{strand}");
-    TRACE("5' Partial") if ( $params{partial} );
-    TRACE( 'Sequence starts with ' . substr ${ $params{seqRef} }, 0, 5 );
-    TRACE( 'Sequence length is ' . length ${ $params{seqRef} } );
-
-    my $increment;
-    my $prefix;
-    my $offset;
-
-    if ( $params{strand} == 1 ) {
-        $increment = 3;
-        $prefix    = '';
-        $offset    = 0;
-    }
-    else {
-        $increment = -3;
-        $prefix    = 'rc_';
-        $offset    = -3;
-    }
-
-    my $peptide  = '';
+    my $prep     = $self->_prepare( $p{strand} );
     my $leftover = '';
+    my $peptide;
 
-EXON: foreach my $i ( 0 .. $#{ $params{exons} } ) {
-        TRACE("Exon $i");
-
-        my ( $lower, $upper );
-
-    VALIDATE: {
-            my $exon
-                = $params{strand} == 1
-                ? $params{exons}[$i]
-                : $params{exons}[ -( $i + 1 ) ];
-
-            ( $lower, $upper ) = validate_pos(
-                @$exon,
-                {  'Lower out of range' => sub {
-                       ( ( 0 <= $_[0] ) && ( $_[0] <= $_[1][1] ) );
-                       }
-                },
-                {  'Upper out of range' => sub {
-                       (     ( $_[1][0] <= $_[0] )
-                          && ( $_[0] <= length $$seqRef ) );
-                       }
-                }
-            );
-
-            TRACE("Lower $lower");
-            TRACE("Upper $upper");
-        }
-
-    LEFTOVER: {
+  EXON: foreach my $exon (@exons) {
+        my ( $lower, $upper ) = @$exon;
+      LEFTOVER: {
 
             ########################################
             # Deal with leftovers (exons that cut
@@ -776,92 +773,127 @@ EXON: foreach my $i ( 0 .. $#{ $params{exons} } ) {
                 # For forward direction, append to
                 # $leftover, otherwise, prepend.
 
-                unless ($prefix) {
-                    $leftover .= substr( $$seqRef, $lower, $length );
+                unless ( $prep->[0] ) {
+                    $leftover .= substr( $$seq_ref, $lower, $length );
                 }
                 else {
-                    $leftover
-                        = substr( $$seqRef, $lower, $length ) . $leftover;
+                    $leftover =
+                      substr( $$seq_ref, $lower, $length ) . $leftover;
                 }
 
                 next EXON;
             }
             else {
-                unless ($prefix) {
-                    $leftover .= substr( $$seqRef, $lower, $togo );
+                unless ( $prep->[0] ) {
+                    $leftover .= substr( $$seq_ref, $lower, $togo );
                     $lower += $togo;
                 }
                 else {
                     $upper -= $togo;
-                    $leftover = substr( $$seqRef, $upper, $togo ) . $leftover;
+                    $leftover = substr( $$seq_ref, $upper, $togo ) . $leftover;
                 }
             }
         }
 
-    PARTIAL: {
+      PARTIAL: {
 
-            ########################################
-            # Handle 5' partials. The first exon may
-            # be the actual start of the gene, so
-            # the option to have the start codon
-            # translated is left in there. Otherwise
-            # just translate the leftover codon like
-            # a regular codon.
+            # Handle 5' partials. The first exon may be the actual start of the
+            # gene, so the option to have the start codon translated is left in
+            # there. Otherwise just translate the leftover codon like a regular
+            # codon.
 
-            if ( $params{partial} ) {
-                $peptide .= $self->{ $prefix . 'forward' }{$leftover};
+            my $ends = [ 0, 3 ];
+            unless ( $p{partial5} ) {
+                $self->_start( \$leftover, \$peptide, $ends, $prep );
+                $p{partial5} = 1;
             }
-            else {
-                $peptide 
-                    = $self->{ $prefix . 'starts' }{$leftover}
-                    || $self->{ $prefix . 'forward' }{$leftover}
-                    || 'X';
-                $params{partial} = 1;
-            }
+
+            $self->_translate( \$leftover, \$peptide, $ends, $prep );
         }
 
-        my $start;
-        my $stop;
-
-    BOUNDS: {
-            ########################################
-            # Similar to translate. Set up looping
-            # variables.
-
-            my $phaseDiff = ( $upper - $lower ) % 3;
-
-            unless ($prefix) {
-                $start    = $lower;
-                $stop     = $upper - $phaseDiff;
-                $leftover = substr( $$seqRef, $stop, $phaseDiff );
-            }
-            else {
-                $start    = $upper - 3;
-                $stop     = $lower + $phaseDiff - 3;
-                $leftover = substr( $$seqRef, $lower, $phaseDiff );
-            }
+        my $ends = $self->_endpoints( $p{strand}, $lower, $upper );
+      BOUNDS: {
+            my $phase_diff = ( $upper - $lower ) % 3;
+            $leftover =
+              $prep->[0]
+              ? substr( $$seq_ref, $lower,     $phase_diff )
+              : substr( $$seq_ref, $ends->[1], $phase_diff );
         }
 
-        ########################################
-        # The guts of the translation routine.
-        # This routine is very fast and is what
-        # should be running over the course of
-        # most of the gene. Dealing with where
-        # the exons start and stop slows down
-        # the execution.
-
-        for ( $start = $start; $start != $stop; $start += $increment ) {
-            $peptide .= $self->{ $prefix . 'forward' }
-                { substr( $$seqRef, $start, 3 ) } || 'X';
-        }
+        $self->_translate( $seq_ref, \$peptide, $ends, $prep );
     }
 
     return \$peptide;
 }
 
-=item translateCodon()
+# Returns [ $is_this_a_reverse_complement, $increment_for_loop ]
+sub _prepare {
+    my $self = shift;
+    my ($strand) = @_;
+    return [ ( $strand == 1 ? 0 : 1 ), $strand * 3 ];
+}
 
-=item $residue = $translator->translateCodon($codon, $start);
+# Convert (lower, upper) into endpoints for a loop. For the + strand, we just
+# adjust upper so that it is in phase with lower. However, for the - strand,
+# we not only adjust lower for phase, but also subtract 3 from everything so
+# that we can take the substring properly. Here is a picture that might make
+# sense of this:
+
+# Positions:             0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4
+# Region of interest (-): . . . .4- - - - - - - - - - - - - - - -20 . . .
+# For + strand:                  4- - -|- - -|- - -|- - -|- - >19
+# For - strand:              2. . .|< - -|- - -|- - -|- - -17 - -|
+
+# For a + strand, it returns [4, 19]. For a - strand, it returns [17, 2]. To
+# get the first codon on the - strand, we take the substring starting at 17,
+# and the loop will end once we decrement our counter to 2.
+
+sub _endpoints {
+    my $self = shift;
+    my ( $strand, $lower, $upper ) = @_;
+
+    if ( $strand == 1 ) {
+        return ( $lower, $upper - ( ( $upper - $lower ) % 2 ) );
+    }
+    else {
+        return [ $upper - 3, $lower - 3 + ( ( $upper - $lower ) % 2 ) ];
+    }
+}
+
+# The actual translation function. Goes from start to stop, appends to the
+# peptide sequence using the translation table provided.
+
+sub _translate {
+    my $self = shift;
+    my ( $seq_ref, $pep_ref, $ends, $prep ) = @_;
+
+    my $table = $self->table->[ $prep->[0] ];
+    while ( $ends->[0] != $ends->[1] ) {
+        $$pep_ref .= $table->{ substr( $$seq_ref, $ends->[0], 3 ) } || 'X';
+        $ends->[0] += $prep->[1];
+    }
+}
+
+# Perform translation for only one frame and adjusts the start only if it finds
+# a codon in the translation table.
+
+sub _start {
+    my $self = shift;
+    my ( $seq_ref, $pep_ref, $ends, $prep ) = @_;
+
+    return if ( $ends->[0] == $ends->[1] );
+
+    my $start =
+      $self->starts->[ $prep->[0] ]->{ substr( $$seq_ref, $ends->[0], 3 ) };
+    if ($start) {
+        $$pep_ref = $start;
+        $ends->[0] += $prep->[1];
+    }
+}
+
+=head2 translate_codon()
+
+    my $residue = $translator->translate_codon($codon, $strand, $start);
 
 Translate a codon. Return 'X' or '-' if it isn't in the
 codon table. Handles degenerate nucleotides, so if all
@@ -870,147 +902,124 @@ return that residue. Will also handle ambiguous amino acids.
 $start dictates whether or not to translate this as a start
 codon. Will also cache any new translations it finds.
 
-For those looking for the translateStart routine, it has
-been merged into translateCodon.
-
 Example:
 
- $residue = $translator->translateCodon('atg');
- $residue = $translator->translateCodon('tty', 1);
- $residue = $translator->translateCodon('cat', -1, 1);
+    $residue = $translator->translate_codon('atg');
+    $residue = $translator->translate_codon('tty', 1);
+    $residue = $translator->translate_codon('cat', -1, 1);
 
 =cut
 
-sub translateCodon {
+sub translate_codon {
+    TRACE("translate_codon called");
+
     my $self = shift;
 
-    my ( $codon, $strand, $start )
-        = validate_pos( @_,
-                        { regex => qr/^${nucMatch}{3}$/ },
-                        { default => 1,
-                          regex   => qr/^[+-]?1$/,
-                          type    => SCALAR
-                        },
-                        { default => 0,
-                          regex   => qr/^[01]$/,
-                          type    => SCALAR
-                        }
-        );
+    my ( $codon, $strand, $start ) = validate_pos(
+        @_,
+        { regex => qr/^${nucMatch}{3}$/ },
+        {
+            default => 1,
+            regex   => qr/^[+-]?1$/,
+            type    => Params::Validate::SCALAR
+        },
+        {
+            default => 0,
+            regex   => qr/^[01]$/,
+            type    => Params::Validate::SCALAR
+        }
+    );
+
     $codon = uc $codon;
+    my $rc = $strand == 1 ? 0 : 1;
 
-    my $prefix = $strand == 1 ? '' : 'rc_';
-
-    DEBUG("translateCodon called");
-    TRACE("Codon $codon");
-
-    my $table;
-    my $notFound;
+    my ( $table, $not_found );
     unless ($start) {
-        $table    = $prefix . 'forward';
-        $notFound = 'X';
+        $table     = $self->table->[$rc];
+        $not_found = 'X';
     }
     else {
-        $table    = $prefix . 'starts';
-        $notFound = '-';
-    }
-    TRACE("Using $table table");
-
-    return $self->{$table}{$codon} if ( defined $self->{$table}{$codon} );
-
-    ########################################
-    # Handles codons with degenerate
-    # nucleotides: [RYMKWS] [BDHV] or N
-    # Several codons may map to the same
-    # amino acid. If all possible codons for
-    # an amibguity map to the same residue,
-    # return that residue rather than X
-
-    if ( my ($nuc) = $codon =~ /($degenMatch)/ ) {
-        my $consensus;
-
-        ########################################
-        # Replace the nucleotide with every
-        # possiblity from degenerate map hash.
-
-        foreach ( @{ $degenerateMap{$nuc} } ) {
-            my $newCodon = $codon;
-            $newCodon =~ s/$nuc/$_/;
-            my $residue = $self->translateCodon( $newCodon, $strand, $start );
-
-            ########################################
-            # If consensus isn't set, set it to the
-            # current residue.
-
-            $consensus = $residue unless $consensus;
-
-            ########################################
-            # If the returned residue was an 'X' or
-            # '-', we return that.
-
-            return $notFound if ( $residue eq $notFound );
-
-            ########################################
-            # This is an interesting step. If the
-            # residue isn't the same as the
-            # consensus, check to see if they map to
-            # the same ambiguous amino acid. If
-            # true, then change the consensus to
-            # that ambiguous acid and proceed.
-            # Otherwise, return $notFound.
-
-            if ( $residue ne $consensus ) {
-                if (    ( defined $ambiguousForward{$residue} )
-                     && ( defined $ambiguousForward{$consensus} )
-                     && ( $ambiguousForward{$residue} eq
-                          $ambiguousForward{$consensus} )
-                    )
-                {
-                    $consensus = $ambiguousForward{$consensus};
-                }
-                else {
-                    return $notFound;
-                }
-            }
-        }
-
-        ########################################
-        # Cache the residue in the translation
-        # tables.
-
-        DEBUG("New codon translation found: $codon => $consensus");
-
-        my $rc_codon_ref = reverseComplement( \$codon );
-
-        $self->{$table}{$codon} = $consensus;
-        $self->{ 'rc_' . $table }{$$rc_codon_ref} = $consensus;
-
-        ########################################
-        # In the case of regular codons, push
-        # that codon onto the reverse
-        # translation array.
-
-        unless ($start) {
-            push @{ $self->{reverse}{$consensus} },    $codon;
-            push @{ $self->{rc_reverse}{$consensus} }, $$rc_codon_ref;
-        }
-
-        return $consensus;
+        $table     = $self->starts->[$rc];
+        $not_found = '-';
     }
 
-    return $notFound;
+    #    return $table->{$codon} if ( defined $table->{$codon} );
+    return $self->_translate_codon( $codon, $table, $rc, $start ) || $not_found;
 }
 
-1;    #end of module
+# This is the helper function for translate_codon. It is designed to speed
+# things up because it doesn't perform validation or try to figure out which
+# tables to use, which can slow things down since this is a recursive function.
+# Handles codons with degenerate nucleotides: [RYMKWS] [BDHV] or N. Several
+# codons may map to the same amino acid. If all possible codons for an
+# amibguity map to the same residue, return that residue rather than X.
 
-=back
+sub _translate_codon {
+    my $self  = shift;
+    my $codon = shift;
+    my $table = $_[0];
 
-=cut
+    # Check for base case: no degenerate nucleotides; we can't unroll further.
+    unless ( $codon =~ /($degenMatch)/ ) {
+        return $table->{$codon};
+    }
+
+    # Check to see if this degenerate-containing codon has been computed
+    return $table->{$codon} if ( $table->{$codon} );
+
+    my $consensus;
+    my $nuc = $1;
+
+    # Replace the nucleotide with every possiblity from degenerate map hash.
+    foreach ( @{ $degenerateMap{$nuc} } ) {
+        my $new_codon = $codon;
+        $new_codon =~ s/$nuc/$_/;
+
+        # Recursively call this function
+        my $residue = $self->_translate_codon( $new_codon, $table, @_ );
+
+        # If the new_codon didn't come to a consensus, or if the translation
+        # isn't defined for new_codon in a custom translation table, return
+        # undef.
+        return undef unless ( defined $residue );
+
+        # If consensus isn't set, set it to the current residue.
+        $consensus = $residue unless ($consensus);
+
+        # This is an interesting step. If the residue isn't the same as the
+        # consensus, check to see if they map to the same ambiguous amino acid.
+        # If true, then change the consensus to that ambiguous acid and proceed.
+        # Otherwise, return undef (consensus could not be reached).
+        if ( $residue ne $consensus ) {
+            if (
+                   ( defined $ambiguousForward{$residue} )
+                && ( defined $ambiguousForward{$consensus} )
+                && ( $ambiguousForward{$residue} eq
+                    $ambiguousForward{$consensus} )
+              )
+            {
+                $consensus = $ambiguousForward{$consensus};
+            }
+            else {
+                return undef;
+            }
+        }
+    }
+
+    # If we got this far, it means that we have a valid consensus sequence for
+    # a degenerate-nucleotide-containing codon. Cache and return results.
+    DEBUG("New codon translation found: $codon => $consensus");
+    $self->add_translation( $codon, $consensus, @_ );
+    return $consensus;
+}
+
+1;
 
 =head1 MISC
 
 These are the original translation tables. The translation tables used by this
-module have been "unrolled" - it includes translations for degenerate
-nucleotides and allows ambiguous amino acids to be the targets of translation
+module have been boostrap - they include translations for degenerate
+nucleotides and allow ambiguous amino acids to be the targets of translation
 (e.g. every effort has been made to give a translation that isn't "X").
 
     {
@@ -1175,6 +1184,58 @@ nucleotides and allows ambiguous amino acids to be the targets of translation
     -- Base2  TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG
     -- Base3  TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG
     }
+
+=head1 AUTHOR
+
+Kevin Galinsky, C<< <kgalinsk at jcvi.org> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to
+C<bug-jcvi-translator at rt.cpan.org>, or through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Accessor-Validating>.
+I will be notified, and then you'll automatically be notified of progress on
+your bug as I make changes.
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+    perldoc JCVI::Translator
+
+You can also look for information at:
+
+=over 4
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/JCVI-Translator>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/JCVI-Translator>
+
+=item * RT: CPAN's request tracker
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=JCVI-Translator>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/JCVI-Translator>
+
+=back
+
+=head1 ACKNOWLEDGEMENTS
+
+Log::Log4perl
+Params::Validate
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2008-2009 J. Craig Venter Institute, all rights reserved.
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
 
 =cut
 
