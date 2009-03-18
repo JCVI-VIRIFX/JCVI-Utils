@@ -11,20 +11,16 @@ JCVI::DNATools - JCVI Basic DNA tools
 
 =head1 SYNOPSES
 
- use JCVI::DNATools qw(:all);
+    use JCVI::DNATools qw(:all);
 
- cleanDNA($seqRef);
- $seqRef = randomDNA(100);
- $revRef = reverseComplement($seqRef);
+    cleanDNA($seq_ref);
+    $seq_ref = randomDNA(100);
+    $rev_ref = reverse_complement($seq_ref);
 
 =head1 DESCRIPTION
 
 Provides a set of functions and predefined variables which
 are handy when working with DNA.
-
-=head1 AUTHOR
-
-Kevin Galinsky, <kgalinsk@jcvi.org>
 
 =cut
 
@@ -33,30 +29,38 @@ package JCVI::DNATools;
 use strict;
 use warnings;
 
-our $VERSION = '0.1.0';
+use version;
+our $VERSION = qv('0.1.5');
 
 use Exporter 'import';
 
 our %EXPORT_TAGS = (
     all => [
-        qw(%degenerateMap
+        qw(
+          %degenerate_map
 
-            $nucs
-            $nucMatch
-            $nucFail
-            $degens
-            $degenMatch
-            $degenFail
+          @nucs
+          $nucs
+          $nuc_match
+          $nuc_fail
 
-            cleanDNA
-            randomDNA
-            reverseComplement)
+          @degens
+          $degens
+          $degen_match
+          $degen_fail
+
+          cleanDNA
+          randomDNA
+          reverse_complement
+          )
     ],
 
     funcs => [
-        qw(cleanDNA
-            randomDNA
-            reverseComplement)
+        qw(
+          cleanDNA
+          randomDNA
+          reverse_complement
+          )
     ]
 );
 
@@ -64,9 +68,7 @@ our @EXPORT_OK = @{ $EXPORT_TAGS{all} };
 
 =head1 VARIABLES
 
-=over
-
-=item %degenerateMap
+=head2 %degenerate_map
 
 Hash of degenerate nucleotides. Each entry contains a
 reference to an array of nucleotides that each degenerate
@@ -74,46 +76,43 @@ nucleotide stands for.
 
 =cut
 
-our %degenerateMap = ( N => [ 'A', 'C', 'G', 'T' ],
-                       V => [ 'A', 'C', 'G' ],
-                       H => [ 'A', 'C', 'T' ],
-                       D => [ 'A', 'G', 'T' ],
-                       B => [ 'C', 'G', 'T' ],
-                       M => [ 'A', 'C' ],
-                       R => [ 'A', 'G' ],
-                       W => [ 'A', 'T' ],
-                       S => [ 'C', 'G' ],
-                       Y => [ 'C', 'T' ],
-                       K => [ 'G', 'T' ]
+our %degenerate_map = (
+    N => [ 'A', 'C', 'G', 'T' ],
+    V => [ 'A', 'C', 'G' ],
+    H => [ 'A', 'C', 'T' ],
+    D => [ 'A', 'G', 'T' ],
+    B => [ 'C', 'G', 'T' ],
+    M => [ 'A', 'C' ],
+    R => [ 'A', 'G' ],
+    W => [ 'A', 'T' ],
+    S => [ 'C', 'G' ],
+    Y => [ 'C', 'T' ],
+    K => [ 'G', 'T' ]
 );
 
-=item Basic Variables
+=head2 BASIC VARIABLES
 
 Basic nucleotide variables that could be useful. $nucs is a
 string containing all the nucleotides (including the
-degenerate ones). $nucMatch and $nucFail are precompiled
+degenerate ones). $nuc_match and $nuc_fail are precompiled
 regular expressions that can be used to match for/against
 a nucleotide. $degen* is the same thing but with degenerates.
 
 =cut
 
-our $nucs     = 'ABCDGHKMNRSTUVWY';
-our $nucMatch = qr/[$nucs]/i;
-our $nucFail  = qr/[^$nucs]/i;
+our $nucs      = 'ABCDGHKMNRSTUVWY';
+our $nuc_match = qr/[$nucs]/i;
+our $nuc_fail  = qr/[^$nucs]/i;
 
-our $degens     = 'BDHKMNRSVWY';
-our $degenMatch = qr/[$degens]/i;
-our $degenFail  = qr/[^$degens]/i;
-
-=back
+our $degens      = 'BDHKMNRSVWY';
+our $degen_match = qr/[$degens]/i;
+our $degen_fail  = qr/[^$degens]/i;
 
 =head1 FUNCTIONS
 
-=over
+=head2 cleanDNA()
 
-=item cleanDNA()
-
-=item $cleanRef = cleanDNA($seqRef);
+    my $cleanRef = cleanDNA($seq_ref);
 
 Cleans the sequence for use. Strips out comments (lines
 starting with '>') and whitespace, converts uracil to
@@ -121,37 +120,38 @@ thymine, and capitalizes all characters.
 
 Examples:
 
- cleanDNA($seqRef);
+    cleanDNA($seq_ref);
 
- $seqRef = cleanDNA(\'actg');
- $seqRef = cleanDNA(\'act tag cta');
- $seqRef = cleanDNA(\'>some mRNA
-                      acugauauagau
-                      uauagacgaucc');
+    my $seq_ref = cleanDNA(\'actg');
+    my $seq_ref = cleanDNA(\'act tag cta');
+    my $seq_ref = cleanDNA(\'>some mRNA
+                             acugauauagau
+                             uauagacgaucc');
 
 =cut
 
 sub cleanDNA {
-    my $seqRef = shift;
+    my $seq_ref = shift;
 
-    $$seqRef = uc $$seqRef;
-    $$seqRef =~ s/^>.*//m;
-    $$seqRef =~ s/$nucFail+//g;
-    $$seqRef =~ tr/U/T/;
+    $$seq_ref = uc $$seq_ref;
+    $$seq_ref =~ s/^>.*//m;
+    $$seq_ref =~ s/$nuc_fail+//g;
+    $$seq_ref =~ tr/U/T/;
 
-    return $seqRef;
+    return $seq_ref;
 }
 
-=item randomDNA()
+=head2 randomDNA()
 
-=item $seqRef = randomDNA($length);
+    my $seq_ref = randomDNA($length);
 
 Generate random DNA for testing this module or your own
 scripts. Default length is 100 nucleotides.
 
 Example:
 
- $seqRef = randomDNA($length);
+    my $seq_ref = randomDNA();
+    my $seq_ref = randomDNA(600);
 
 =cut
 
@@ -166,23 +166,23 @@ sub randomDNA {
     return \$seq;
 }
 
-=item reverseComplement()
+=item reverse_complement()
 
-=item $reverseRef = reverseComplement($seqRef);
+=item $reverse_ref = reverse_complement($seq_ref);
 
 Finds the reverse complement of the sequence and handles
 degenerate nucleotides.
 
 Example:
 
- $reverseRef = reverseComplement(\'act');
+ $reverse_ref = reverse_complement(\'act');
 
 =cut
 
-sub reverseComplement {
-    my $seqRef = shift;
+sub reverse_complement {
+    my $seq_ref = shift;
 
-    my $reverse = reverse $$seqRef;
+    my $reverse = reverse $$seq_ref;
     $reverse =~ tr/acgtmrykvhdbnACGTMRYKVHDBN/tgcakyrmbdhvnTGCAKYRMBDHVN/;
 
     return \$reverse;
@@ -190,6 +190,8 @@ sub reverseComplement {
 
 1;
 
-=back
+=head1 AUTHOR
+
+Kevin Galinsky, <kgalinsk@jcvi.org>
 
 =cut
