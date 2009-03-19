@@ -400,7 +400,8 @@ sub bootstrap {
     $table_string_ref = $translator->table_string($bootstrap);
 
 Returns the table string. $bootstrap specifies whether or not this table should
-try to bootstrap itself using the bootstrap function above.
+try to bootstrap itself using the bootstrap function above. By default, it is
+1.
 
 =cut
 
@@ -417,7 +418,7 @@ sub table_string {
 
     my $names = join( '; ', @{ $self->names } );
     my ( $residues, $starts );
-    my @base = ( 0 .. 2 );
+    my @base = ( undef ) x 3;
 
     my @NUCS = split '', $nucs;
 
