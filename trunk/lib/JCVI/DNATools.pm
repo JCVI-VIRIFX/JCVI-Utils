@@ -13,9 +13,9 @@ JCVI::DNATools - JCVI Basic DNA tools
 
     use JCVI::DNATools qw(:all);
 
-    cleanDNA($seq_ref);
-    $seq_ref = randomDNA(100);
-    $rev_ref = reverse_complement($seq_ref);
+    my $clean_ref = cleanDNA($seq_ref);
+    my $seq_ref = randomDNA(100);
+    my $rev_ref = reverse_complement($seq_ref);
 
 =head1 DESCRIPTION
 
@@ -30,7 +30,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.1.5');
+our $VERSION = qv('0.1.6');
 
 use Exporter 'import';
 
@@ -112,7 +112,7 @@ our $degen_fail  = qr/[^$degens]/i;
 
 =head2 cleanDNA()
 
-    my $cleanRef = cleanDNA($seq_ref);
+    my $clean_ref = cleanDNA($seq_ref);
 
 Cleans the sequence for use. Strips out comments (lines
 starting with '>') and whitespace, converts uracil to
@@ -120,7 +120,7 @@ thymine, and capitalizes all characters.
 
 Examples:
 
-    cleanDNA($seq_ref);
+    my $clean_ref = cleanDNA($seq_ref);
 
     my $seq_ref = cleanDNA(\'actg');
     my $seq_ref = cleanDNA(\'act tag cta');
@@ -133,12 +133,12 @@ Examples:
 sub cleanDNA {
     my $seq_ref = shift;
 
-    $$seq_ref = uc $$seq_ref;
-    $$seq_ref =~ s/^>.*//m;
-    $$seq_ref =~ s/$nuc_fail+//g;
-    $$seq_ref =~ tr/U/T/;
+    my $clean = uc $$seq_ref;
+    $clean =~ s/^>.*//m;
+    $clean =~ s/$nuc_fail+//g;
+    $clean =~ tr/U/T/;
 
-    return $seq_ref;
+    return \$clean;
 }
 
 =head2 randomDNA()
