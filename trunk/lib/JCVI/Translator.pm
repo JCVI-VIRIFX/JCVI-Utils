@@ -70,7 +70,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.4.0_02');
+our $VERSION = qv('0.4.0_03');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names table starts reverse));
@@ -461,7 +461,7 @@ The parameters are:
     strand    - 1 or -1; optional - defaults to 1
     lower     - integer between 0 and length; optional - defaults to 0
     upper     - integer between 0 and length; optional - defaults to length
-    partial5  - 0 or 1; optional - defaults to 0
+    partial   - 0 or 1; optional - defaults to 0
     sanitized - 0 or 1; optional - defaults to 0
 
 Translator uses interbase coordinates. lower and upper are optional parameters
@@ -471,7 +471,7 @@ such that:
 
 Translator will log and die if those conditions are not satisfied.
 
-partial5 sets whether or not the sequence is a 5' partial. By default, partial5
+partial sets whether or not the sequence is a 5' partial. By default, partial
 is taken to be false  and the translator will try to translate the first codon
 as if it were a start codon. You can specify that the sequence is 5' partial
 and the translator will skip that step.
@@ -527,10 +527,10 @@ Examples:
     my $pep_ref = $translator->translate(
         \'acttgacgt',
         {
-            strand   => 1,
-            lower    => 0,
-            upper    => 8,
-            partial5 => 0
+            strand  => 1,
+            lower   => 0,
+            upper   => 8,
+            partial => 0
         }
     );
 
@@ -581,7 +581,7 @@ sub translate {
                     'upper <= seq_length' => sub { $_[0] <= length($$seq_ref) }
                 }
             },
-            partial5  => { default => $DEFAULT_PARTIAL5 },
+            partial   => { default => $DEFAULT_PARTIAL5 },
             sanitized => { default => $DEFAULT_SANITIZED }
         }
     );
@@ -591,14 +591,14 @@ sub translate {
         die "Upper $p{upper} < Lower $p{lower}";
     }
 
-    cleanDNA($seq_ref) unless ( $p{sanitized} );
+    $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
     my $prep = $self->_prepare( $p{strand} );
     my $ends = $self->_endpoints( @p{qw(strand lower upper)} );
 
     my $peptide = '';
 
-    $self->_start( $seq_ref, \$peptide, $ends, $prep ) unless ( $p{partial5} );
+    $self->_start( $seq_ref, \$peptide, $ends, $prep ) unless ( $p{partial} );
     $self->_translate( $seq_ref, \$peptide, $ends, $prep );
 
     return \$peptide;
@@ -642,7 +642,7 @@ sub translate6 {
 
     TRACE('translate6 called');
 
-    cleanDNA($seq_ref) unless ($sanitized);
+    $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
 
     my @peptides;
 
@@ -702,7 +702,7 @@ sub translate_exons {
             type      => Params::Validate::SCALARREF,
             callbacks => {
                 'Sequence contains invalid nucleotides' => sub {
-                    ${ $_[0] } !~ /[^$nuc_match]/;
+                    ${ $_[0] } !~ /$nuc_fail/;
                   }
             }
         },
@@ -712,28 +712,30 @@ sub translate_exons {
 
     validate_pos(
         @$exons,
-        {
-            type      => Params::Validate::ARRAYREF,
-            callbacks => {
-                'Bound not an integer' => sub {
-                    foreach my $bound ( @{ $_[0] } ) {
-                        return 0 unless ( $bound =~ /^\d+$/ );
-                    }
-                    return 1;
-                },
-                'Bound out of range' => sub {
-                    foreach my $bound ( @{ $_[0] } ) {
-                        return 0
-                          unless ( ( $bound >= 0 )
-                            && ( $bound <= length $$seq_ref ) );
-                    }
-                    return 1;
-                },
-                'Bound not in order' => sub {
-                    return $_[0][0] <= $_[0][1];
-                  }
+        (
+            {
+                type      => Params::Validate::ARRAYREF,
+                callbacks => {
+                    'Bound not an integer' => sub {
+                        foreach my $bound ( @{ $_[0] } ) {
+                            return 0 unless ( $bound =~ /^\d+$/ );
+                        }
+                        return 1;
+                    },
+                    'Bound out of range' => sub {
+                        foreach my $bound ( @{ $_[0] } ) {
+                            return 0
+                              unless ( ( $bound >= 0 )
+                                && ( $bound <= length $$seq_ref ) );
+                        }
+                        return 1;
+                    },
+                    'lower <= upper' => sub {
+                        return $_[0][0] <= $_[0][1];
+                      }
+                }
             }
-        } x @$exons
+          ) x @$exons
     );
 
     my %p = validate(
@@ -744,73 +746,58 @@ sub translate_exons {
                 regex   => qr/^[+-]?1$/,
                 type    => Params::Validate::SCALAR
             },
-            partial5  => { default => $DEFAULT_PARTIAL5 },
+            partial   => { default => $DEFAULT_PARTIAL5 },
             sanitized => { default => $DEFAULT_SANITIZED }
         }
     );
 
-    my @exons = sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] } @$exons;
+    my @exons =
+      sort { ( $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] ) * $p{strand} }
+      @$exons;
 
-    my $prep     = $self->_prepare( $p{strand} );
+    my $prep = $self->_prepare( $p{strand} );
     my $leftover = '';
     my $peptide;
 
   EXON: foreach my $exon (@exons) {
         my ( $lower, $upper ) = @$exon;
+
       LEFTOVER: {
+            # Deal with leftovers. These are codons that have been cut by
+            # splicing. In the event that no codon has been cut, the leftover
+            # will be the first codon of the exon.
 
-            ########################################
-            # Deal with leftovers (exons that cut
-            # codons) and exons that are short.
-            # If the exon has fewer nucleotides than
-            # what is required to complete the
-            # codon, dump the nucleotides into the
-            # growing codon and then continue.
-            # Otherwise, complete the exon and
-            # increment the start index.
+            my $to_go = 3 - length($leftover);
 
-            my $togo = 3 - length $leftover;
+            # If the exon has fewer nucleotides than what is required to
+            # complete the codon, set $to_go to be the length of that exon.
+            if ( ( my $length = $upper - $lower ) < $to_go ) {
+                $to_go = $length;
+            }
 
-            if ( ( my $length = $upper - $lower ) <= $togo ) {
-                WARN("Exon very short: $length <= $togo");
-
-                ########################################
-                # For forward direction, append to
-                # $leftover, otherwise, prepend.
-
-                unless ( $prep->[0] ) {
-                    $leftover .= substr( $$seq_ref, $lower, $length );
-                }
-                else {
-                    $leftover =
-                      substr( $$seq_ref, $lower, $length ) . $leftover;
-                }
-
-                next EXON;
+            #  Complete the leftover and increment the start index.
+            unless ( $prep->[0] ) {
+                $leftover .= substr( $$seq_ref, $lower, $to_go );
+                $lower += $to_go;
             }
             else {
-                unless ( $prep->[0] ) {
-                    $leftover .= substr( $$seq_ref, $lower, $togo );
-                    $lower += $togo;
-                }
-                else {
-                    $upper -= $togo;
-                    $leftover = substr( $$seq_ref, $upper, $togo ) . $leftover;
-                }
+                $upper -= $to_go;
+                $leftover = substr( $$seq_ref, $upper, $to_go ) . $leftover;
             }
+            
+            # If leftover isn't long enough, then move to the next exon.
+            next EXON if (length($leftover) < 3);
         }
 
-      PARTIAL: {
+      START: {
 
-            # Handle 5' partials. The first exon may be the actual start of the
-            # gene, so the option to have the start codon translated is left in
-            # there. Otherwise just translate the leftover codon like a regular
-            # codon.
+            # Handle the start codon. After the start codon has been
+            # translated, set the partial flag so we don't try it again.
 
-            my $ends = [ 0, 3 ];
-            unless ( $p{partial5} ) {
+            my $ends = [ 0, $prep->[1] ];
+            unless ( $p{partial} ) {
                 $self->_start( \$leftover, \$peptide, $ends, $prep );
-                $p{partial5} = 1;
+                $p{partial} = 1;
             }
 
             $self->_translate( \$leftover, \$peptide, $ends, $prep );
@@ -1198,7 +1185,7 @@ Kevin Galinsky, C<< <kgalinsk at jcvi.org> >>
 
 Please report any bugs or feature requests to
 C<bug-jcvi-translator at rt.cpan.org>, or through the web interface at
-L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Accessor-Validating>.
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=JCVI-Translator>.
 I will be notified, and then you'll automatically be notified of progress on
 your bug as I make changes.
 
