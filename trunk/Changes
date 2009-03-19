@@ -1,5 +1,8 @@
 Revision history for JCVI-DNATools
 
+0.1.7
+  - Added @nucs and @degens
+
 0.1.6
   - cleanDNA doesn't work on sequence passed; returns a reference to the
     cleaned sequence. This lets you pass in strings without the program

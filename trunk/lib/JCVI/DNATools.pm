@@ -30,7 +30,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.1.6');
+our $VERSION = qv('0.1.7');
 
 use Exporter 'import';
 
@@ -39,13 +39,13 @@ our %EXPORT_TAGS = (
         qw(
           %degenerate_map
 
-          @nucs
           $nucs
+          @nucs
           $nuc_match
           $nuc_fail
 
-          @degens
           $degens
+          @degens
           $degen_match
           $degen_fail
 
@@ -101,10 +101,12 @@ a nucleotide. $degen* is the same thing but with degenerates.
 =cut
 
 our $nucs      = 'ABCDGHKMNRSTUVWY';
+our @nucs      = split //, $nucs;
 our $nuc_match = qr/[$nucs]/i;
 our $nuc_fail  = qr/[^$nucs]/i;
 
 our $degens      = 'BDHKMNRSVWY';
+our @degens      = split //, $degens;
 our $degen_match = qr/[$degens]/i;
 our $degen_fail  = qr/[^$degens]/i;
 
