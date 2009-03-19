@@ -81,7 +81,6 @@ use JCVI::DNATools qw(
   $degen_match
   @nucs
   $nuc_match
-  $nuc_fail
   cleanDNA
   reverse_complement
 );
@@ -91,13 +90,14 @@ use JCVI::AATools qw(
   $aa_match
 );
 
-my $DEFAULT_ID        = 1;
-my $DEFAULT_TYPE      = 'id';
-my $DEFAULT_COMPLETE  = 0;
-my $DEFAULT_BOOTSTRAP = 1;
-my $DEFAULT_STRAND    = 1;
-my $DEFAULT_PARTIAL   = 0;
-my $DEFAULT_SANITIZED = 0;
+# Defaults. Used by the validation functions.
+our $DEFAULT_ID        = 1;
+our $DEFAULT_TYPE      = 'id';
+our $DEFAULT_COMPLETE  = 0;
+our $DEFAULT_BOOTSTRAP = 1;
+our $DEFAULT_STRAND    = 1;
+our $DEFAULT_PARTIAL   = 0;
+our $DEFAULT_SANITIZED = 0;
 
 =head1 CONSTRUCTORS
 
@@ -511,11 +511,11 @@ The basic function of this module. Translate the specified region of the
 sequence (passed as $seq_ref) and return a reference to the translated string.
 The parameters are:
 
-    strand    - 1 or -1; optional - defaults to 1
-    lower     - integer between 0 and length; optional - defaults to 0
-    upper     - integer between 0 and length; optional - defaults to length
-    partial   - 0 or 1; optional - defaults to 0
-    sanitized - 0 or 1; optional - defaults to 0
+    strand:     1 or -1; default = 1
+    lower:      integer between 0 and length; default = 0
+    upper:      integer between 0 and length; default = length
+    partial:    0 or 1; default = 0
+    sanitized:  0 or 1; default = 0
 
 Translator uses interbase coordinates. lower and upper are optional parameters
 such that:
@@ -590,21 +590,14 @@ Examples:
 =cut
 
 sub translate {
-    my $self = shift;
-
     TRACE('translate called');
+
+    my $self = shift;
 
     my ( $seq_ref, @p );
     ( $seq_ref, $p[0] ) = validate_pos(
         @_,
-        {
-            type      => Params::Validate::SCALARREF,
-            callbacks => {
-                'Sequence contains invalid nucleotides' => sub {
-                    ${ $_[0] } !~ /$nuc_fail/;
-                  }
-            }
-        },
+        { type => Params::Validate::SCALARREF, },
         { type => Params::Validate::HASHREF, default => {} }
     );
 
@@ -677,10 +670,10 @@ the translations. The structure of the array is as follows:
 
 The parameters are similar to those use in translate:
 
-    lower     - integer between 0 and length; optional - defaults to 0
-    upper     - integer between 0 and length; optional - defaults to length
-    partial   - 0 or 1; optional - defaults to 0
-    sanitized - 0 or 1; optional - defaults to 0
+    lower:      integer between 0 and length; default = 0
+    upper:      integer between 0 and length; default = length
+    partial:    0 or 1; default = 0
+    sanitized:  0 or 1; default = 0
 
 Example:
 
@@ -707,14 +700,7 @@ sub translate6 {
     my ( $seq_ref, @p );
     ( $seq_ref, $p[0] ) = validate_pos(
         @_,
-        {
-            type      => Params::Validate::SCALARREF,
-            callbacks => {
-                'Sequence contains invalid nucleotides' => sub {
-                    ${ $_[0] } !~ /$nuc_fail/;
-                  }
-            }
-        },
+        { type => Params::Validate::SCALARREF },
         { type => Params::Validate::HASHREF, default => {} }
     );
 
@@ -779,9 +765,9 @@ sub translate6 {
 
 Translate a gene spanning multiple exons. Paramters are:
 
-    strand    - 1 or -1; optional - defaults to 1
-    partial: '0' or '1'; optional, defaults to '0'
-    sanitized - 0 or 1; optional - defaults to 0
+    strand:     1 or -1; default = 1
+    partial:    0 or 1;  default = 0
+    sanitized:  0 or 1;  default = 0
 
 Input:
 
@@ -809,15 +795,7 @@ sub translate_exons {
     my ( $seq_ref, $exons, @p );
     ( $seq_ref, $exons, $p[0] ) = validate_pos(
         @_,
-        {
-            default   => $self->{seq_ref},
-            type      => Params::Validate::SCALARREF,
-            callbacks => {
-                'Sequence contains invalid nucleotides' => sub {
-                    ${ $_[0] } !~ /$nuc_fail/;
-                  }
-            }
-        },
+        { type => Params::Validate::SCALARREF },
         { type => Params::Validate::ARRAYREF },
         { type => Params::Validate::HASHREF, default => {} }
     );
