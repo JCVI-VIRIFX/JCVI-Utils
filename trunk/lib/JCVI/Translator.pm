@@ -13,7 +13,7 @@ JCVI::Translator - JCVI Translator object
 
 use JCVI::Translator;
 
-    my $translator = new JCVI::Translator;
+    my $translator = new JCVI::Translator();
     my $translator = new JCVI::Translator(11);
     my $translator = new JCVI::Translator( 12, 'id' );
     my $translator = new JCVI::Translator( 'Yeast Mitochondrial', 'name' );
@@ -60,8 +60,6 @@ introduces a bit of overhead, however, for scripts that are
 fully tested, validation can be disabled. See the
 Params::Validate documentation.
 
-=head1 METHODS
-
 =cut
 
 package JCVI::Translator;
@@ -76,19 +74,22 @@ use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names table starts reverse));
 
 use Log::Log4perl qw(:easy);
-use Params::Validate qw(validate validate_pos validate_with);
+use Params::Validate;
 
 use JCVI::DNATools qw(
   %degenerate_map
   $degen_match
-  $nucs
+  @nucs
   $nuc_match
   $nuc_fail
   cleanDNA
   reverse_complement
 );
 
-use JCVI::AATools qw(%ambiguous_forward);
+use JCVI::AATools qw(
+  %ambiguous_forward
+  $aa_match
+);
 
 my $DEFAULT_ID        = 1;
 my $DEFAULT_TYPE      = 'id';
@@ -98,9 +99,15 @@ my $DEFAULT_STRAND    = 1;
 my $DEFAULT_PARTIAL5  = 0;
 my $DEFAULT_SANITIZED = 0;
 
+=head1 CONSTRUCTORS
+
+=cut
+
 =head2 new
 
-    my $translator = new JCVI::Translator($id, $type);
+    my $translator = new JCVI::Translator();
+    my $translator = new JCVI::Translator( $id );
+    my $translator = new JCVI::Translator( $id, $type );
 
 This method creates a translator by loading a translation table from the
 internal list. Pass an ID and the type of ID. By default, it will load the
@@ -192,7 +199,8 @@ sub new {
 
 =head2 custom()
 
-    my $translator = $translator->custom($table_ref, $complete);
+    my $translator = $translator->custom( $table_ref );
+    my $translator = $translator->custom( $table_ref, $complete );
 
 Create a translator table based off a passed table reference for custom
 translation tables. Loads degenerate nucleotides if $complete isn't set (this
@@ -227,6 +235,8 @@ Examples:
 
 =cut
 
+# Regular expression which should match translation tables and also extracts
+# relevant information.
 our $TABLE_REGEX = qr/
                         ( (?:name\s+".+?".*?) + )
                         id\s+(\d+).*
@@ -251,11 +261,13 @@ sub custom {
         }
     );
 
+    # Match the table or return undef.
     unless ( $$table_ref =~ $TABLE_REGEX ) {
         ERROR( 'Translation table is in invalid format', $$table_ref );
         return undef;
     }
 
+    # Store the data that has been stripped using descriptive names;
     my $names    = $1;
     my $id       = $2;
     my $residues = $3;
@@ -281,6 +293,7 @@ sub custom {
         }
     }
 
+    # Store all the hashes in $self so we don't have to keep using accessors
     my $forward_hash    = $self->table->[0];
     my $rc_forward_hash = $self->table->[1];
 
@@ -297,17 +310,23 @@ sub custom {
 
         my $rc_codon_ref = reverse_complement( \$codon );
 
+        # If the residue is valid, store it
         if ( $residue ne 'X' ) {
             $forward_hash->{$codon}            = $residue;
             $rc_forward_hash->{$$rc_codon_ref} = $residue;
+
+            push @{ $reverse_hash->{$residue} },    $codon;
+            push @{ $rc_reverse_hash->{$residue} }, $$rc_codon_ref;
         }
+
+        # If the start is valid, store it
         if ( ( $start ne '-' ) ) {
             $starts_hash->{$codon}            = $start;
             $rc_starts_hash->{$$rc_codon_ref} = $start;
-        }
 
-        push @{ $reverse_hash->{$residue} },    $codon;
-        push @{ $rc_reverse_hash->{$residue} }, $$rc_codon_ref;
+            push @{ $reverse_hash->{$start} },    $codon;
+            push @{ $rc_reverse_hash->{$start} }, $$rc_codon_ref;
+        }
     }
 
     # Unroll the translation table unless it has been marked complete
@@ -316,35 +335,8 @@ sub custom {
     return $self;
 }
 
-=head2 add_translation
-
-    $translator->add_translation($codon, $residue, $reverse_complement, $start);
-
-Add a codon-to-residue translation to the translation table.
-
-=cut
-
-sub add_translation {
-    TRACE('add_translation called');
-
-    my $self = shift;
-
-    my ( $codon, $residue, $rc, $start ) = validate_pos(
-        @_, 1, 1,
-        { default => 0, regex => qr/^[01]$/ },
-        { default => 0, regex => qr/^[01]$/ }
-    );
-
-    my $rc_codon_ref = reverse_complement( \$codon );
-
-    my $table = $start ? 'starts' : 'table';
-    $self->$table->[$rc]->{codon} = $residue;
-    $self->$table->[ ( $rc + 1 ) % 2 ]->{$$rc_codon_ref} = $residue;
-
-    push @{ $self->reverse->[$rc]->{residue} }, $codon;
-    push @{ $self->reverse->[ ( $rc + 1 ) % 2 ]->{residue} }, $$rc_codon_ref;
-}
-
+# Helper constructor. Instantiates the object with arrayrefs and hashrefs in
+# the right places
 sub _new {
     my $class = shift;
     my $self  = $class->SUPER::new(
@@ -365,6 +357,44 @@ sub _new {
     return $self;
 }
 
+=head1 METHODS
+
+=cut
+
+=head2 add_translation
+
+    $translator->add_translation( $codon, $residue );
+    $translator->add_translation( $codon, $residue, $start );
+
+Add a codon-to-residue translation to the translation table.
+
+=cut
+
+sub add_translation {
+    TRACE('add_translation called');
+
+    my $self = shift;
+
+    my ( $codon, $residue, $start ) = validate_pos(
+        @_,
+        { regex   => qr/^${nuc_match}{3}$/ },
+        { regex   => qr/^$aa_match$/ },
+        { default => 0, regex => qr/^[01]$/ }
+    );
+
+    my $rc_codon_ref = reverse_complement( \$codon );
+
+    # Store residue in the starts or regular translation table.
+    my $table = $start ? 'starts' : 'table';
+    $self->$table->[0]->{codon} = $residue;
+    $self->$table->[1]->{$$rc_codon_ref} = $residue;
+
+    # Store the reverse lookup
+    $residue = 'start' if ($start);
+    push @{ $self->reverse->[0]->{$residue} }, $codon;
+    push @{ $self->reverse->[1]->{$residue} }, $$rc_codon_ref;
+}
+
 =head2 bootstrap
 
     $translator->bootstrap();
@@ -378,8 +408,6 @@ sub bootstrap {
     TRACE('bootstrap called');
 
     my $self = shift;
-
-    my @nucs = split //, $nucs;
 
     # Loop through every nucleotide combination and run _translate_codon on
     # each.
@@ -414,14 +442,18 @@ sub table_string {
       validate_pos( @_,
         { default => $DEFAULT_BOOTSTRAP, regex => qr/^[01]$/ } );
 
+    # Bootstrap if necessary
     $self->bootstrap() if ($bootstrap);
 
+    # Generate the names string
     my $names = join( '; ', @{ $self->names } );
-    my ( $residues, $starts );
-    my @base = ( undef ) x 3;
 
-    my @NUCS = split '', $nucs;
+    my ( $residues, $starts );    # starts/residues string
+    my @base = (undef) x 3;       # this will store the bases for the loop
 
+    # Loop over all stored codons. Sort the codons in the translation table and
+    # starts table, then use grep to get the unique ones with the help of $prev
+    # which stores the previous value
     my $prev;
     foreach my $codon (
         grep ( ( $_ ne $prev ) && ( $prev = $_ ),
@@ -436,9 +468,12 @@ sub table_string {
 
         $residues .= $residue;
         $starts   .= $start;
+
+        # Chop up the codon because the bases are stored on separate lines
         $base[ -$_ ] .= chop $codon foreach ( 1 .. 3 );
     }
 
+    # Generate the string
     my $string = join( "\n",
         '{',
         qq(name "$names" ,),
@@ -587,6 +622,7 @@ sub translate {
         }
     );
 
+    # Die if upper < lower
     if ( $p{upper} < $p{lower} ) {
         FATAL "Upper $p{upper} < Lower $p{lower}";
         die "Upper $p{upper} < Lower $p{lower}";
@@ -594,6 +630,7 @@ sub translate {
 
     $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
+    # These are necessary for the _translate function
     my $prep = $self->_prepare( $p{strand} );
     my $ends = $self->_endpoints( @p{qw(strand lower upper)} );
 
@@ -647,20 +684,21 @@ sub translate6 {
 
     my @peptides;
 
-    {
-        my $prep = $self->_prepare(1);
+    foreach my $strand ( -1, 1 ) {
+
+        # We only need to calculate prep once for a given strand
+        my $prep = $self->_prepare($strand);
+        my $rc   = $prep->[0];                 # True if reverse complement
+        my $fw   = ( $rc + 1 ) % 2;            # True if forward strand
         foreach ( 0 .. 2 ) {
-            my $ends = $self->_endpoints( 1, $_, length($$seq_ref) );
-            $self->_start( $seq_ref, \$peptides[$_], $ends, $prep );
-            $self->_translate( $seq_ref, \$peptides[$_], $ends, $prep );
-        }
-    }
-    {
-        my $prep = $self->_prepare(-1);
-        foreach ( 0 .. 2 ) {
-            my $ends = $self->_endpoints( -1, 0, length($$seq_ref) - $_ );
-            $self->_start( $seq_ref, \$peptides[ 3 + $_ ], $ends, $prep );
-            $self->_translate( $seq_ref, \$peptides[ 3 + $_ ], $ends, $prep );
+
+            # Calculate endpoints and translate
+            my $ends =
+              $self->_endpoints( $strand, $fw * $_,
+                length($$seq_ref) - $rc * $_ );
+            $self->_start( $seq_ref, \$peptides[ $rc * 3 + $_ ], $ends, $prep );
+            $self->_translate( $seq_ref, \$peptides[ $rc * 3 + $_ ],
+                $ends, $prep );
         }
     }
 
@@ -756,7 +794,7 @@ sub translate_exons {
       sort { ( $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] ) * $p{strand} }
       @$exons;
 
-    my $prep = $self->_prepare( $p{strand} );
+    my $prep     = $self->_prepare( $p{strand} );
     my $leftover = '';
     my $peptide;
 
@@ -764,6 +802,7 @@ sub translate_exons {
         my ( $lower, $upper ) = @$exon;
 
       LEFTOVER: {
+
             # Deal with leftovers. These are codons that have been cut by
             # splicing. In the event that no codon has been cut, the leftover
             # will be the first codon of the exon.
@@ -785,9 +824,9 @@ sub translate_exons {
                 $upper -= $to_go;
                 $leftover = substr( $$seq_ref, $upper, $to_go ) . $leftover;
             }
-            
+
             # If leftover isn't long enough, then move to the next exon.
-            next EXON if (length($leftover) < 3);
+            next EXON if ( length($leftover) < 3 );
         }
 
       START: {
