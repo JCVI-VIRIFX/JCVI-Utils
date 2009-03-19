@@ -1,0 +1,13 @@
+Revision history for JCVI-DNATools
+
+0.1.6
+  - cleanDNA doesn't work on sequence passed; returns a reference to the
+    cleaned sequence. This lets you pass in strings without the program
+    failing
+
+0.1.5
+  - Removed camelCase to make it more_perlish.
+
+0.1.0
+  - Initial version. cleanDNA, randomDNA and reverseComplement functions, as
+    well as commonly used variables defined.  
