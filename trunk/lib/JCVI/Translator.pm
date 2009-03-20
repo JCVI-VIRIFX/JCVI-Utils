@@ -7,7 +7,7 @@
 
 =head1 NAME
 
-JCVI::Translator - JCVI Translator object
+JCVI::Translator - Translate DNA sequences
 
 =head1 SYNOPSIS
 
@@ -68,7 +68,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.4.0_04');
+our $VERSION = qv('0.4.0');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names _table _starts _reverse));
@@ -282,7 +282,7 @@ sub custom {
 
     my $self = $class->_new();
 
-    $self->id($1);
+    $self->id($id);
 
     # Extract each name, massage, and push it onto names array
     while ( $names =~ /"(.+?)"/gis ) {
@@ -345,7 +345,7 @@ sub _new {
     my $class = shift;
     my $self  = $class->SUPER::new(
         {
-            names   => [],
+            names    => [],
             _table   => [],
             _starts  => [],
             _reverse => []
@@ -368,7 +368,7 @@ sub _new {
 =head2 add_translation
 
     $translator->add_translation( $codon, $residue );
-    $translator->add_translation( $codon, $residue, $start );
+    $translator->add_translation( $codon, $residue, \%params );
 
 Add a codon-to-residue translation to the translation table. $start inidicates
 if this is a start codon.
@@ -386,23 +386,52 @@ sub add_translation {
 
     my $self = shift;
 
-    my ( $codon, $residue, $start ) = validate_pos(
+    my ( $codon, $residue, @p );
+
+    ( $codon, $residue, $p[0] ) = validate_pos(
         @_,
-        { regex   => qr/^${nuc_match}{3}$/ },
-        { regex   => qr/^$aa_match$/ },
-        { default => 0, regex => qr/^[01]$/ }
+        { regex => qr/^${nuc_match}{3}$/ },
+        { regex => qr/^$aa_match$/ },
+        { type  => Params::Validate::HASHREF, default => {} }
+
     );
 
-    my $rc_codon_ref = reverse_complement( \$codon );
+    my %p = validate(
+        @p,
+        {
+            strand => {
+                default => 1,
+                regex   => qr/^[+-]?1$/,
+                type    => Params::Validate::SCALAR
+            },
+            start => {
+                default => 0,
+                regex   => qr/^[01]$/,
+                type    => Params::Validate::SCALAR
+            }
+        }
+    );
+
+    my $codon_ref;
+    my $rc_codon_ref;
+
+    if ( $p{strand} == 1 ) {
+        $codon_ref    = \$codon;
+        $rc_codon_ref = reverse_complement( \$codon );
+    }
+    else {
+        $rc_codon_ref = \$codon;
+        $codon_ref    = reverse_complement( \$codon );
+    }
 
     # Store residue in the starts or regular translation table.
-    my $table = $start ? '_starts' : '_table';
-    $self->$table->[0]->{codon} = $residue;
+    my $table = $p{start} ? '_starts' : '_table';
+    $self->$table->[0]->{$$codon_ref}    = $residue;
     $self->$table->[1]->{$$rc_codon_ref} = $residue;
 
     # Store the reverse lookup
-    $residue = 'start' if ($start);
-    push @{ $self->_reverse->[0]->{$residue} }, $codon;
+    $residue = 'start' if ( $p{start} );
+    push @{ $self->_reverse->[0]->{$residue} }, $$codon_ref;
     push @{ $self->_reverse->[1]->{$residue} }, $$rc_codon_ref;
 }
 
@@ -425,10 +454,12 @@ sub bootstrap {
     foreach my $n1 (@nucs) {
         foreach my $n2 (@nucs) {
             foreach my $n3 (@nucs) {
-                $self->_translate_codon( $n1 . $n2 . $n3,
-                    $self->_table->[0], 0, 0 );
-                $self->_translate_codon( $n1 . $n2 . $n3,
-                    $self->_starts->[0], 0, 1 );
+                $self->_translate_codon( $n1 . $n2 . $n3, $self->_table->[0] );
+                $self->_translate_codon(
+                    $n1 . $n2 . $n3,
+                    $self->_starts->[0],
+                    { start => 1 }
+                );
             }
         }
     }
@@ -471,7 +502,7 @@ sub table_string {
     # Loop over all stored codons. Sort the codons in the translation table and
     # starts table, then use grep to get the unique ones with the help of $prev
     # which stores the previous value
-    my $prev;
+    my $prev = '';
     foreach my $codon (
         grep ( ( $_ ne $prev ) && ( $prev = $_ ),
             sort { $a cmp $b } (
@@ -480,11 +511,8 @@ sub table_string {
               ) )
       )
     {
-        my $residue = $self->_table->[0]->{$codon}  || 'X';
-        my $start   = $self->_starts->[0]->{$codon} || '-';
-
-        $residues .= $residue;
-        $starts   .= $start;
+        $residues .= $self->_table->[0]->{$codon}  || 'X';
+        $starts   .= $self->_starts->[0]->{$codon} || '-';
 
         # Chop up the codon because the bases are stored on separate lines
         $base[ -$_ ] .= chop $codon foreach ( 1 .. 3 );
@@ -494,7 +522,7 @@ sub table_string {
     my $string = join( "\n",
         '{',
         qq(name "$names" ,),
-        qq(id $self->{info}{id} ,),
+        qq(id $self->{id} ,),
         qq(ncbieaa  "$residues",),
         qq(sncbieaa "$starts"),
         map( {"-- Base$_  $base[$_ - 1]"} ( 1 .. 3 ) ),
@@ -973,20 +1001,21 @@ sub _start {
 
 =head2 translate_codon
 
-    my $residue = $translator->translate_codon( $codon, $strand, $start );
+    my $residue = $translator->translate_codon( $codon );
+    my $residue = $translator->translate_codon( $codon, \%params );
 
 Translate a codon. Return 'X' or '-' if it isn't in the
 codon table. Handles degenerate nucleotides, so if all
 possible codons for an ambiguity map to the same residue,
 return that residue. Will also handle ambiguous amino acids.
-$start dictates whether or not to translate this as a start
+start dictates whether or not to translate this as a start
 codon. Will also cache any new translations it finds.
 
 Example:
 
     $residue = $translator->translate_codon('atg');
-    $residue = $translator->translate_codon('tty', 1);
-    $residue = $translator->translate_codon('cat', -1, 1);
+    $residue = $translator->translate_codon( 'tty', { strand => -1 } );
+    $residue = $translator->translate_codon( 'cat', { start => 1 } );
 
 =cut
 
@@ -995,26 +1024,36 @@ sub translate_codon {
 
     my $self = shift;
 
-    my ( $codon, $strand, $start ) = validate_pos(
+    my ( $codon, @p );
+
+    ( $codon, $p[0] ) = validate_pos(
         @_,
         { regex => qr/^${nuc_match}{3}$/ },
+        { type  => Params::Validate::HASHREF, default => {} }
+
+    );
+
+    my %p = validate(
+        @p,
         {
-            default => 1,
-            regex   => qr/^[+-]?1$/,
-            type    => Params::Validate::SCALAR
-        },
-        {
-            default => 0,
-            regex   => qr/^[01]$/,
-            type    => Params::Validate::SCALAR
+            strand => {
+                default => 1,
+                regex   => qr/^[+-]?1$/,
+                type    => Params::Validate::SCALAR
+            },
+            start => {
+                default => 0,
+                regex   => qr/^[01]$/,
+                type    => Params::Validate::SCALAR
+            }
         }
     );
 
     $codon = uc $codon;
-    my $rc = $strand == 1 ? 0 : 1;
+    my $rc = $p{strand} == 1 ? 0 : 1;
 
     my ( $table, $not_found );
-    unless ($start) {
+    unless ( $p{start} ) {
         $table     = $self->_table->[$rc];
         $not_found = 'X';
     }
@@ -1024,7 +1063,7 @@ sub translate_codon {
     }
 
     #    return $table->{$codon} if ( defined $table->{$codon} );
-    return $self->_translate_codon( $codon, $table, $rc, $start ) || $not_found;
+    return $self->_translate_codon( $codon, $table, \%p ) || $not_found;
 }
 
 # This is the helper function for translate_codon. It is designed to speed
@@ -1037,7 +1076,7 @@ sub translate_codon {
 sub _translate_codon {
     my $self  = shift;
     my $codon = shift;
-    my $table = $_[0];
+    my $table = shift;
 
     # Check for base case: no degenerate nucleotides; we can't unroll further.
     unless ( $codon =~ /($degen_match)/ ) {

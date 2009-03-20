@@ -17,6 +17,14 @@ JCVI::Translator::Utils - Utilities that requrie a translation table
     my $utils = new JCVI::Translator::Utils();
     my $utils = custom JCVI::Translator( \$custom_table );
 
+    my $codons = $utils->codons( $residue );
+    my $regex  = $utils->regex( $residue );
+
+    my $orf = $utils->getORF( $seq_ref );
+    my $cds = $utils->getCDS( $seq_ref );
+
+    my $frames = $utils->nonstop( $seq_ref );
+
 =head1 DESCRIPTION
 
 See Translator for more info. Utils extends Translator and
@@ -81,6 +89,7 @@ sub codons {
     if    ( $residue eq 'lower' ) { $residue = $strand == 1  ? 'start' : '*' }
     elsif ( $residue eq 'upper' ) { $residue = $strand == -1 ? 'start' : '*' }
     elsif ( $residue eq 'start' ) { $residue = 'start' }
+    else                          { $residue = uc $residue }
 
     return [
         @{ $self->_reverse->[ $strand == 1 ? 0 : 1 ]->{$residue} ||= [] } ];
@@ -153,7 +162,7 @@ This will return:
     {
         strand => 1,
         lower  => 3,
-        upper  => 9 
+        upper  => 9
     }
 
 You can also specify which strand you are looking for the ORF to be on.
@@ -176,7 +185,7 @@ Will return:
         lower  => 1,
         upper  => 10
     }
-    
+
 The distance between lower and upper will always be a multiple of 3. This is to
 make it clear which frame the ORF is in. The resulting hash may be passed to
 the translate method.
@@ -336,7 +345,7 @@ It takes the following parameters:
     strand:     0, 1 or -1; default = 0 (meaning search both strands)
     strict:     0, 1 or 2;  default = 1
     sanitized:  0 or 1; default = 0
-    
+
 Strict controls how strictly getCDS functions. There are 3 levels of
 strictness, enumerated 0, 1 and 2. 2 is the most strict, and in that mode, a
 region will only be considered a CDS if both the start and stop is found. In
@@ -528,19 +537,20 @@ sub _compare_regions {
 
 =head2 nonstop
 
-    my $frames = $translator->nonstop( $seq_ref, \%params );
+    my $frames = $translator->nonstop( $seq_ref );
     my $frames = $translator->nonstop( $seq_ref, \%params );
 
-Returns the frames that contain no stop codons for the sequence. $strand is
-optional and defaults to 0. Frames are 1, 2, 3, -1, -2, -3.
+Returns the frames that contain no stop codons for the sequence. Valid
+parameters are strand and sanitized. strand is defaults to 0. Frames are
+numbered -3, -2, -1, 1, 2 and 3.
 
- 3    ---->
- 2   ----->
- 1  ------>
-    -------
- -1 <------
- -2 <-----
- -3 <----
+     3   ---->
+     2  ----->
+     1 ------>
+       -------
+    -1 <------
+    -2 <-----
+    -3 <----
 
 Example:
 
