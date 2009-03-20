@@ -35,6 +35,7 @@ __PACKAGE__->mk_accessors(qw( _regexes ));
 use Log::Log4perl qw(:easy);
 use Params::Validate;
 
+use JCVI::DNATools qw( cleanDNA );
 use JCVI::AATools qw( $aa_match );
 
 our $DEFAULT_STRAND    = 0;
@@ -46,7 +47,7 @@ our $DEFAULT_SANITIZED = 0;
 
 sub _new {
     my $class = shift;
-    my $self  = $class->SUPER::new();
+    my $self  = $class->SUPER::_new();
 
     $self->_regexes( [] );
     foreach my $rc ( 0 .. 1 ) {
@@ -181,8 +182,15 @@ the translate method.
 
 Example:
 
-    my $orf_ref = $translator->getORF(\'TAGAAATAG');
-    my $orf_ref = $translator->getORF(\'TAGAAATAG', { strand => -1 });
+    my $orf_ref = $translator->getORF( \'TAGAAATAG' );
+    my $orf_ref = $translator->getORF( \$seq, { strand => -1 } );
+    my $orf_ref = $translator->getORF(
+        \$seq,
+        {
+            lower => $lower,
+            upper => $upper
+        }
+    );
 
 =cut
 
@@ -339,7 +347,8 @@ molecule. Level 1 is a pretty safe bet, so that is the default.
 Example:
 
     my $cds_ref = $translator->getCDS(\'ATGAAATAG');
-    my $cds_ref = $translator->getCDS(\'ATGAAATAG', -1);
+    my $cds_ref = $translator->getCDS(\$seq, { strand => -1 } );
+    my $cds_ref = $translator->getCDS(\$seq, { strict => 2 } );
 
 =cut
 
@@ -459,7 +468,8 @@ sub getCDS {
                 $position += 3;
                 last if ( $position > $p{upper} );
 
-                $self->_getCDS($strand, \@lowers, $position, $p{lower}, \%CDS);
+                $self->_getCDS( $strand, \@lowers, $position, $p{lower},
+                    \%CDS );
             }
         }
 
@@ -473,7 +483,7 @@ sub getCDS {
 
         foreach my $i ( 0 .. 2 ) {
             my $upper = $p{upper} - $i;
-            $self->_getCDS($strand, \@lowers, $upper, $p{lower}, \%CDS);
+            $self->_getCDS( $strand, \@lowers, $upper, $p{lower}, \%CDS );
         }
     }
 
@@ -533,9 +543,9 @@ optional and defaults to 0. Frames are 1, 2, 3, -1, -2, -3.
 
 Example:
 
-    my $frames = $translator->nonstop(\'TACGTTGGTTAAGTT');     # [-1, -3, 2, 3]
-    my $frames = $translator->nonstop(\'TACGTTGGTTAAGTT', 1);  # [2, 3]
-    my $frames = $translator->nonstop(\'TACGTTGGTTAAGTT', -1); # [-1, -3]
+    my $frames = $translator->nonstop(\'TACGTTGGTTAAGTT'); # [ 2, 3, -1, -3 ]
+    my $frames = $translator->nonstop(\$seq, { strand => 1 }  ); # [ 2, 3 ]
+    my $frames = $translator->nonstop(\$seq, { strand => -1 } ); # [ -1, -3 ]
 
 =cut
 
@@ -566,8 +576,8 @@ sub nonstop {
     $seq_ref = cleanDNA($seq_ref) unless ( $p{sanitized} );
 
     my @frames;
-    foreach my $strand ( $p{strand} == 0 ? ( -1, 1 ) : $p{strand} ) {
-        my $stop = $self->regex( 'stop', $strand );
+    foreach my $strand ( $p{strand} == 0 ? ( 1, -1 ) : $p{strand} ) {
+        my $stop = $self->regex( '*', $strand );
 
         foreach my $frame ( 0 .. 2 ) {
             my $regex =
