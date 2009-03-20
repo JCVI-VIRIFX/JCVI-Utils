@@ -68,7 +68,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.4.0_03');
+our $VERSION = qv('0.4.0_04');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names _table _starts _reverse));
@@ -328,8 +328,8 @@ sub custom {
             $starts_hash->{$codon}            = $start;
             $rc_starts_hash->{$$rc_codon_ref} = $start;
 
-            push @{ $reverse_hash->{$start} },    $codon;
-            push @{ $rc_reverse_hash->{$start} }, $$rc_codon_ref;
+            push @{ $reverse_hash->{start} },    $codon;
+            push @{ $rc_reverse_hash->{start} }, $$rc_codon_ref;
         }
     }
 

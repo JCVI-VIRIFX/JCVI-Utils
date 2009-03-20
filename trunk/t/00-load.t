@@ -8,4 +8,3 @@ BEGIN {
 }
 
 diag( "Testing JCVI::Translator $JCVI::Translator::VERSION, Perl $], $^X" );
-diag( "Testing JCVI::Translator::Utils" );

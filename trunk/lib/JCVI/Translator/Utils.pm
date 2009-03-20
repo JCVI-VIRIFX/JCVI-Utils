@@ -82,7 +82,8 @@ sub codons {
     elsif ( $residue eq 'upper' ) { $residue = $strand == -1 ? 'start' : '*' }
     elsif ( $residue eq 'start' ) { $residue = 'start' }
 
-    return [ @{ $self->_reverse->[ $strand == 1 ? 0 : 1 ]->{$residue} } ];
+    return [
+        @{ $self->_reverse->[ $strand == 1 ? 0 : 1 ]->{$residue} ||= [] } ];
 }
 
 =head2 regex
@@ -522,7 +523,7 @@ sub _compare_regions {
     my ( $longest, $current ) = @_;
     %$longest = %$current
       if ( $longest->{upper} - $longest->{lower} <
-        $current->upper - $current->{lower} );
+        $current->{upper} - $current->{lower} );
 }
 
 =head2 nonstop
