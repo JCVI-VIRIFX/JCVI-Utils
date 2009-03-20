@@ -30,7 +30,7 @@ use strict;
 use warnings;
 
 use base qw(JCVI::Translator);
-__PACKAGE__->mk_accessors(qw( regexes ));
+__PACKAGE__->mk_accessors(qw( _regexes ));
 
 use Log::Log4perl qw(:easy);
 use Params::Validate;
@@ -48,9 +48,9 @@ sub _new {
     my $class = shift;
     my $self  = $class->SUPER::new();
 
-    $self->regexes( [] );
+    $self->_regexes( [] );
     foreach my $rc ( 0 .. 1 ) {
-        $self->regexes->[$rc] = {};
+        $self->_regexes->[$rc] = {};
     }
 
     return $self;
@@ -61,7 +61,8 @@ sub _new {
     my $codon_array = $translator->codons( $residue);
     my $codon_array = $translator->codons( $residue, $strand );
 
-Returns a list of codons for a particular residue or start codon.
+Returns a list of codons for a particular residue or start codon. For start
+codons, input "start" for the residue.
 
 =cut
 
@@ -78,8 +79,9 @@ sub codons {
 
     if    ( $residue eq 'lower' ) { $residue = $strand == 1  ? 'start' : '*' }
     elsif ( $residue eq 'upper' ) { $residue = $strand == -1 ? 'start' : '*' }
+    elsif ( $residue eq 'start' ) { $residue = 'start' }
 
-    return [ @{ $self->reverse->[ $strand == 1 ? 0 : 1 ]->{$residue} } ];
+    return [ @{ $self->_reverse->[ $strand == 1 ? 0 : 1 ]->{$residue} } ];
 }
 
 =head2 regex
@@ -96,7 +98,7 @@ residue. In addition, three special values are allowed:
 
 lower and upper match the respective ends of a CDS for a given strand (i.e. on
 the positive strand, lower matches the start, and upper matches the stop). The
-stop codon is stored as '*' by the translator.
+stop codon is stored as "*" by the translator.
 
 =cut
 
@@ -112,14 +114,14 @@ sub regex {
 
     my $rc = $strand == 1 ? 0 : 1;
 
-    my $regex = $self->regexes->[$rc]->{residue};
+    my $regex = $self->_regexes->[$rc]->{residue};
 
     return $regex if ( defined $regex );
 
     $regex = join '|', @{ $self->codons(@_) };
     $regex = qr/$regex/;
 
-    $self->regexes->[$rc]->{residue} = $regex;
+    $self->_regexes->[$rc]->{residue} = $regex;
     return $regex;
 }
 

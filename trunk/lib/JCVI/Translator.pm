@@ -71,7 +71,7 @@ use version;
 our $VERSION = qv('0.4.0_03');
 
 use base qw(Class::Accessor::Fast);
-__PACKAGE__->mk_accessors(qw(id names table starts reverse));
+__PACKAGE__->mk_accessors(qw(id names _table _starts _reverse));
 
 use Log::Log4perl qw(:easy);
 use Params::Validate;
@@ -298,14 +298,14 @@ sub custom {
     }
 
     # Store all the hashes in $self so we don't have to keep using accessors
-    my $forward_hash    = $self->table->[0];
-    my $rc_forward_hash = $self->table->[1];
+    my $forward_hash    = $self->_table->[0];
+    my $rc_forward_hash = $self->_table->[1];
 
-    my $starts_hash    = $self->starts->[0];
-    my $rc_starts_hash = $self->starts->[1];
+    my $starts_hash    = $self->_starts->[0];
+    my $rc_starts_hash = $self->_starts->[1];
 
-    my $reverse_hash    = $self->reverse->[0];
-    my $rc_reverse_hash = $self->reverse->[1];
+    my $reverse_hash    = $self->_reverse->[0];
+    my $rc_reverse_hash = $self->_reverse->[1];
 
     # Chop is used to efficiently get the last character from each string
     while ( my $residue = uc( chop $residues ) ) {
@@ -346,13 +346,13 @@ sub _new {
     my $self  = $class->SUPER::new(
         {
             names   => [],
-            table   => [],
-            starts  => [],
-            reverse => []
+            _table   => [],
+            _starts  => [],
+            _reverse => []
         }
     );
 
-    foreach my $func (qw(table starts reverse)) {
+    foreach my $func (qw( _table _starts _reverse )) {
         foreach my $rc ( 0 .. 1 ) {
             $self->$func->[$rc] = {};
         }
@@ -396,14 +396,14 @@ sub add_translation {
     my $rc_codon_ref = reverse_complement( \$codon );
 
     # Store residue in the starts or regular translation table.
-    my $table = $start ? 'starts' : 'table';
+    my $table = $start ? '_starts' : '_table';
     $self->$table->[0]->{codon} = $residue;
     $self->$table->[1]->{$$rc_codon_ref} = $residue;
 
     # Store the reverse lookup
     $residue = 'start' if ($start);
-    push @{ $self->reverse->[0]->{$residue} }, $codon;
-    push @{ $self->reverse->[1]->{$residue} }, $$rc_codon_ref;
+    push @{ $self->_reverse->[0]->{$residue} }, $codon;
+    push @{ $self->_reverse->[1]->{$residue} }, $$rc_codon_ref;
 }
 
 =head2 bootstrap
@@ -426,9 +426,9 @@ sub bootstrap {
         foreach my $n2 (@nucs) {
             foreach my $n3 (@nucs) {
                 $self->_translate_codon( $n1 . $n2 . $n3,
-                    $self->table->[0], 0, 0 );
+                    $self->_table->[0], 0, 0 );
                 $self->_translate_codon( $n1 . $n2 . $n3,
-                    $self->starts->[0], 0, 1 );
+                    $self->_starts->[0], 0, 1 );
             }
         }
     }
@@ -436,8 +436,8 @@ sub bootstrap {
 
 =head2 table_string
 
-    my $table_string_ref = $translator->table_string();
-    my $table_string_ref = $translator->table_string( $bootstrap );
+    my $table_string_ref = $translator->_table_string();
+    my $table_string_ref = $translator->_table_string( $bootstrap );
 
 Returns the table string. $bootstrap specifies whether or not this table should
 try to bootstrap itself using the bootstrap function above. By default, it is
@@ -445,8 +445,8 @@ try to bootstrap itself using the bootstrap function above. By default, it is
 
 Examples:
 
-    my $table_string_ref = $translator->table_string();
-    my $table_string_ref = $translator->table_string(0); # To not bootstrap
+    my $table_string_ref = $translator->_table_string();
+    my $table_string_ref = $translator->_table_string(0); # To not bootstrap
 
 =cut
 
@@ -475,13 +475,13 @@ sub table_string {
     foreach my $codon (
         grep ( ( $_ ne $prev ) && ( $prev = $_ ),
             sort { $a cmp $b } (
-                keys( %{ $self->table->[0] } ),
-                keys( %{ $self->starts->[0] } )
+                keys( %{ $self->_table->[0] } ),
+                keys( %{ $self->_starts->[0] } )
               ) )
       )
     {
-        my $residue = $self->table->[0]->{$codon}  || 'X';
-        my $start   = $self->starts->[0]->{$codon} || '-';
+        my $residue = $self->_table->[0]->{$codon}  || 'X';
+        my $start   = $self->_starts->[0]->{$codon} || '-';
 
         $residues .= $residue;
         $starts   .= $start;
@@ -947,7 +947,7 @@ sub _translate {
     my $self = shift;
     my ( $seq_ref, $pep_ref, $ends, $prep ) = @_;
 
-    my $table = $self->table->[ $prep->[0] ];
+    my $table = $self->_table->[ $prep->[0] ];
     while ( $ends->[0] != $ends->[1] ) {
         $$pep_ref .= $table->{ substr( $$seq_ref, $ends->[0], 3 ) } || 'X';
         $ends->[0] += $prep->[1];
@@ -964,7 +964,7 @@ sub _start {
     return if ( $ends->[0] == $ends->[1] );
 
     my $start =
-      $self->starts->[ $prep->[0] ]->{ substr( $$seq_ref, $ends->[0], 3 ) };
+      $self->_starts->[ $prep->[0] ]->{ substr( $$seq_ref, $ends->[0], 3 ) };
     if ($start) {
         $$pep_ref = $start;
         $ends->[0] += $prep->[1];
@@ -1015,11 +1015,11 @@ sub translate_codon {
 
     my ( $table, $not_found );
     unless ($start) {
-        $table     = $self->table->[$rc];
+        $table     = $self->_table->[$rc];
         $not_found = 'X';
     }
     else {
-        $table     = $self->starts->[$rc];
+        $table     = $self->_starts->[$rc];
         $not_found = '-';
     }
 
