@@ -67,7 +67,7 @@ use strict;
 use warnings;
 
 use version;
-our $VERSION = qv('0.4.2');
+our $VERSION = qv('0.4.3');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(id names _table _starts _reverse));
