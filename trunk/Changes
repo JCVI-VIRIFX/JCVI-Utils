@@ -2,7 +2,7 @@ Revision history for JCVI-Translator
 
 0.5.2   Apr 13 2009
  - Even more documentation in Utils
- - codons/regex/find method in Utils can take "stop" for stop codons 
+ - codons/regex/find method in Utils can take "stop" for stop codons
 
 0.5.1   Apr 13 2009
  - Better documentation in Utils
