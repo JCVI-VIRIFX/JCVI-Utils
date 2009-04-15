@@ -1,12 +1,16 @@
 Revision history for JCVI-Bounds
 
-0.2.0   Apr 15, 2009
- - Moved to JCVI::Bounds
- - Implemented as an arrayref with just 3 values
- - Quicker
- - Meant to be used with composition (i.e. your object has a bounds object)
+0.2.1   Apr 15, 2009
+  - Put use version on same line as $VERSION declared
+  - Added META.yml so make dist would work
 
-0.1.0   Once upon a time
- - Initial version
- - Based on Class::Accessor::Validating
- - Was meant to be extended
+0.2.0   Apr 15, 2009
+  - Moved to JCVI::Bounds
+  - Implemented as an arrayref with just 3 values
+  - Quicker than using Class::Accessor::Validing
+  - Meant to be used with composition (i.e. your object has a bounds object)
+
+0.1.0
+  - Initial version
+  - Based on Class::Accessor::Validating
+  - Was meant to be extended
