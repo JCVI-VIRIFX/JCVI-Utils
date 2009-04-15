@@ -111,7 +111,7 @@ our $degen_fail  = qr/[^$degens]/i;
 
 =head1 FUNCTIONS
 
-=head2 cleanDNA()
+=head2 cleanDNA
 
     my $clean_ref = cleanDNA($seq_ref);
 
@@ -141,7 +141,7 @@ sub cleanDNA {
     return \$clean;
 }
 
-=head2 randomDNA()
+=head2 randomDNA
 
     my $seq_ref = randomDNA($length);
 
@@ -166,7 +166,7 @@ sub randomDNA {
     return \$seq;
 }
 
-=head2 reverse_complement()
+=head2 reverse_complement
 
     my $reverse_ref = reverse_complement($seq_ref);
 
@@ -187,6 +187,12 @@ sub reverse_complement {
 
     return \$reverse;
 }
+
+=head2 rev_comp
+
+See reverse_complement.
+
+=cut
 
 *rev_comp = \&reverse_complement;
 
