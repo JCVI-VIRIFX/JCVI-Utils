@@ -4,8 +4,10 @@ META.yml # Will be created by "make dist"
 Makefile.PL
 README
 lib/JCVI/Bounds.pm
+lib/JCVI/Bounds/Set.pm
 t/00-load.t
 t/01-bounds.t
+t/02-set.t
 t/boilerplate.t
 t/pod-coverage.t
 t/pod.t

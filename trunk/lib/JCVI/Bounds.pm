@@ -8,7 +8,7 @@ package JCVI::Bounds;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.2.1');
+use version; our $VERSION = qv('0.2.2');
 
 =head1 NAME
 
@@ -34,10 +34,11 @@ my $LOWER_INDEX  = 0;
 my $LENGTH_INDEX = 1;
 my $STRAND_INDEX = 2;
 
-our $INT_REGEX    = qr/^\d+$/;
-our $STRAND_REGEX = qr/^[+-]?[01]$/;
+our $INT_REGEX     = qr/^[+-]?\d+$/;
+our $POS_INT_REGEX = qr/^\d+$/;
+our $STRAND_REGEX  = qr/^[+-]?[01]$/;
 
-my $DEFAULT_BOUNDS_WIDTH = 6;
+my $BOUNDS_WIDTH = 6;
 
 =head1 SYNOPSIS
 
@@ -100,7 +101,7 @@ sub new {
     my $self  = [
         validate_pos(
             @_,
-            ( { default => 0, regex => $INT_REGEX } ) x 2,
+            ( { default => 0, regex => $POS_INT_REGEX } ) x 2,
             { optional => 1, regex => $STRAND_REGEX }
         )
     ];
@@ -117,7 +118,7 @@ Create the class given 5' and 3' end coordinates.
 
 sub e53 {
     my $class = shift;
-    my ( $e5, $e3 ) = validate_pos( @_, ( { regex => $INT_REGEX } ) x 2 );
+    my ( $e5, $e3 ) = validate_pos( @_, ( { regex => $POS_INT_REGEX } ) x 2 );
 
     return bless( [ --$e5, $e3 - $e5, 1 ],  $class ) if ( $e5 < $e3 );
     return bless( [ --$e3, $e5 - $e3, -1 ], $class ) if ( $e3 < $e5 );
@@ -140,7 +141,7 @@ sequencing gaps:
 sub ul {
     my $class = shift;
     my ( $upper, $length ) =
-      validate_pos( @_, ( { regex => $INT_REGEX } ) x 2 );
+      validate_pos( @_, ( { regex => $POS_INT_REGEX } ) x 2 );
     $class->new( $upper - $length, $length );
 }
 
@@ -163,7 +164,7 @@ sub lower {
     return $self->[$LOWER_INDEX] unless (@_);
 
     croak 'Lower must be a non-negative integer'
-      unless ( $_[0] =~ /$INT_REGEX/ );
+      unless ( $_[0] =~ /$POS_INT_REGEX/ );
     $self->length( $self->upper() - $_[0] );
     return $self->[$LOWER_INDEX] = $_[0];
 
@@ -198,7 +199,7 @@ sub length {
     return $self->[$LENGTH_INDEX] unless (@_);
 
     croak 'Length must be a non-negative integer'
-      unless ( $_[0] =~ /$INT_REGEX/ );
+      unless ( $_[0] =~ /$POS_INT_REGEX/ );
     return $self->[$LENGTH_INDEX] = $_[0] * 1;
 }
 
@@ -244,10 +245,7 @@ Get/set 5' end
 
 =cut
 
-sub end5 {
-    my $self = shift;
-    $self->_end( 1, @_ );
-}
+sub end5 { shift->_end( 1, @_ ) }
 
 =head2 end3
 
@@ -258,29 +256,35 @@ Get/set 3' end
 
 =cut
 
-sub end3 {
-    my $self = shift;
-    $self->_end( -1, @_ );
-}
+sub end3 { shift->_end( -1, @_ ) }
 
+# Does the actual work of figuring out the end
 sub _end {
     my $self = shift;
-    my $end  = shift;
 
+    # $test is "On what strand does the 5' end correspond to the lower bound?"
+    my $test = shift;
+
+    my ($end) = validate_pos( @_, { regex => $POS_INT_REGEX, optional => 1 } );
+
+    # If strand isn't defined or 0:
+    # Return the end if end5 = end3 (length == 1)
+    # Return undef (since we don't know which is which)
     my $strand = $self->strand;
     unless ($strand) {
         if ( $self->length != 1 ) {
             return undef;
         }
-        return $self->upper;
+        return $self->lower + 1;
     }
-    else {
-        my ( $bound, $offset ) =
-          $strand == $end ? ( 'lower', 1 ) : ( 'upper', 0 );
-        return $self->$bound + $offset
-          unless (@_);
-        return $self->$bound( $_[0] - $offset );
-    }
+
+    # Get the bound based upon the test
+    # For lower bounds, we want to offset the bound by 1
+    my ( $bound, $offset ) = $strand == $test ? ( 'lower', 1 ) : ( 'upper', 0 );
+
+    # Return/set the bound
+    return $self->$bound() + $offset unless ( defined $end );
+    return $self->$bound( $end - $offset ) + $offset;
 }
 
 =head1 PUBLIC METHODS
@@ -293,7 +297,8 @@ sub _end {
     $self = $self->extend( $offset );        # Extend both ends by $offset
     $self = $self->extend( $lower, $upper ); # Extend ends by different amounts
 
-Extend/contract the bounds by the supplied offset(s).
+Extend/contract the bounds by the supplied offset(s). To contract, supply a
+negative offset.
 
 =cut
 
@@ -307,17 +312,18 @@ sub extend {
     return $self;
 }
 
+# Validate and return offsets. Set upper to lower if lower isn't defined
 sub _validate_extend {
     shift;
     my ( $lower, $upper ) = validate_pos(
         @_,
         {
             type  => Params::Validate::SCALAR,
-            regex => qr/^[+-]?\d+$/,
+            regex => $INT_REGEX,
         },
         {
             type     => Params::Validate::SCALAR,
-            regex    => qr/^[+-]?\d+$/,
+            regex    => $INT_REGEX,
             optional => 1
         }
     );
@@ -331,7 +337,10 @@ sub _validate_extend {
 
     $bounds_seq_ref = $bounds->sequence($seq_ref);
 
-Extract sequence from a sequence reference. Returned as a reference.
+Extract substring from a sequence reference. Returned as a reference. The same
+as:
+
+    substr($sequence, $bounds->lower, $bounds->length);
 
 =cut
 
@@ -342,6 +351,7 @@ sub sequence {
     return \$substr;
 }
 
+# Make sure the sequence is a scalarref and that the upper bound is contained
 sub _validate_sequence {
     my $self = shift;
     return validate_pos(
@@ -349,7 +359,7 @@ sub _validate_sequence {
         {
             type      => Params::Validate::SCALARREF,
             callbacks => {
-                'bounds within range' => sub {
+                'bounds within sequence' => sub {
                     return ( CORE::length( ${ $_[0] } ) >= $self->upper );
                   }
             }
@@ -367,13 +377,17 @@ Returns a string for the bounds.
 =cut
 
 {
+
+    # Map from (0, 1, -1) to (. + -)
     my @STRAND_MAP = qw( . + - );
 
     sub string {
         my $self   = shift;
         my $strand = $self->strand();
-        return sprintf "[ %1s %-${DEFAULT_BOUNDS_WIDTH}d %${DEFAULT_BOUNDS_WIDTH}d ] < 5' %-${DEFAULT_BOUNDS_WIDTH}d %${DEFAULT_BOUNDS_WIDTH}d 3' >",
+        return
+          sprintf q{[ %1s %s %s ] < 5' %s %s 3' >},
           ( defined($strand) ? $STRAND_MAP[$strand] : '?' ),
+          map { sprintf "%${BOUNDS_WIDTH}d", $_ }
           map { $self->$_ || 0 } qw( lower upper end5 end3 );
     }
 }
@@ -396,53 +410,52 @@ sub contains {
 
 =head2 outside
 
-    if ($a->outside($b)) { ... }
+    if ( $a->outside($b) ) { ... }
 
 Returns true if the first bound is outside the second.
 
 =cut
 
 sub outside {
-    my $self = shift;
-    my ($bounds) = validate_pos( @_, { can => [qw(lower upper)] } );
-    return ( ( $self->lower <= $bounds->lower )
-          && ( $self->upper >= $bounds->upper ) );
+    my ( $a, $b ) = validate_pos( @_, ( { can => [qw(lower upper)] } ) x 2 );
+    return ( ( $a->lower <= $b->lower ) && ( $a->upper >= $b->upper ) );
 }
 
 =head2 inside
 
-    if ($a->inside($b)) { ... }
+    if ( $a->inside($b) ) { ... }
 
 Returns true if the first bound is inside the second.
 
 =cut
 
-sub inside {
-    my $self = shift;
-    my ($bounds) = validate_pos( @_, { can => [qw(lower upper)] } );
-    return ( ( $self->lower >= $bounds->lower )
-          && ( $self->upper <= $bounds->upper ) );
-}
+sub inside { outside( reverse(@_) ) }
 
 =head2 equal
 
-    if ($a->equal($b)) { ... }
-    if (equal($a, $b)) { ... }
-    if ($a == $b) { ... }
+    if ( $a->equal($b) ) { ... }
+    if ( equal($a, $b) ) { ... }
+    if ( $a == $b ) { ... }
 
 Returns true if the bounds have same endpoints and orientation.
 
 =cut
 
-sub equal {
-    my ( $a, $b ) =
-      validate_pos( @_, ( { can => [qw(lower upper strand)] } ) x 2, 0 );
+{
 
-    foreach (qw(lower upper strand)) {
-        return 0 if ( $a->$_ != $b->$_ );
+    # Comparisons to be run
+    my @COMPARISONS = qw( lower upper strand );
+
+    sub equal {
+        # Make sure that both objects can run the comparison functions
+        my ( $a, $b ) = validate_pos( @_, ( { can => \@COMPARISONS } ) x 2, 0 );
+
+        # Return false if a comparison failed
+        foreach (@COMPARISONS) { return 0 if ( $a->$_ != $b->$_ ) }
+
+        # Return true if all comparisons succeeded
+        return 1;
     }
-
-    return 1;
 }
 
 =head2 overlap
@@ -527,4 +540,4 @@ under the same terms as Perl itself.
 
 =cut
 
-1; # End of JCVI::Bounds
+1;
