@@ -29,10 +29,18 @@ package JCVI::DNATools;
 use strict;
 use warnings;
 
-use version;
-our $VERSION = qv('0.1.7');
+use version; our $VERSION = qv('0.1.8');
 
 use Exporter 'import';
+
+my $funcs = [
+        qw(
+          cleanDNA
+          randomDNA
+          reverse_complement
+          rev_comp
+          )
+    ]; 
 
 our %EXPORT_TAGS = (
     all => [
@@ -48,20 +56,11 @@ our %EXPORT_TAGS = (
           @degens
           $degen_match
           $degen_fail
-
-          cleanDNA
-          randomDNA
-          reverse_complement
-          )
+          ), @$funcs
+          
     ],
 
-    funcs => [
-        qw(
-          cleanDNA
-          randomDNA
-          reverse_complement
-          )
-    ]
+    funcs => $funcs
 );
 
 our @EXPORT_OK = @{ $EXPORT_TAGS{all} };
@@ -116,9 +115,8 @@ our $degen_fail  = qr/[^$degens]/i;
 
     my $clean_ref = cleanDNA($seq_ref);
 
-Cleans the sequence for use. Strips out comments (lines
-starting with '>') and whitespace, converts uracil to
-thymine, and capitalizes all characters.
+Cleans the sequence for use. Strips out comments (lines starting with '>') and
+whitespace, converts uracil to thymine, and capitalizes all characters.
 
 Examples:
 
@@ -189,6 +187,8 @@ sub reverse_complement {
 
     return \$reverse;
 }
+
+*rev_comp = \&reverse_complement;
 
 1;
 

@@ -1,5 +1,8 @@
 Revision history for JCVI-DNATools
 
+0.1.8 Apr 15, 2009
+  - Added rev_comp as shortcut for reverse_complement
+
 0.1.7
   - Added @nucs and @degens
 
