@@ -25,7 +25,7 @@ package JCVI::AATools;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.1.5');
+use version; our $VERSION = qv('0.1.6');
 
 use Exporter 'import';
 
