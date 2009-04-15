@@ -8,8 +8,7 @@ package JCVI::Bounds;
 use strict;
 use warnings;
 
-use version;
-our $VERSION = qv('0.2.0');
+use version; our $VERSION = qv('0.2.0');
 
 =head1 NAME
 
