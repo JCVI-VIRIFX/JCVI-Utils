@@ -30,3 +30,13 @@ foreach my $def (@battery) {
     is ($A->$test, $pos, "+ $test correct");
     is ($B->$test, $neg, "- $test correct");
 }
+
+my $a = $A->bounds;
+my $b = $B->bounds;
+
+foreach my $def (@battery) {
+    my ($test, $pos, $neg) = @$def;
+    
+    is ($a->$test, $pos, "+ $test bound correct");
+    is ($b->$test, $neg, "- $test bound correct");
+}

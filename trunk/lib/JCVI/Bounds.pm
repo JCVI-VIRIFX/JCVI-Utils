@@ -8,7 +8,7 @@ package JCVI::Bounds;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.2.2');
+use version; our $VERSION = qv('0.2.3');
 
 =head1 NAME
 
@@ -16,12 +16,12 @@ JCVI::Bounds - class for boundaries on genetic sequence data
 
 =head1 VERSION
 
-Version 0.2.1
+Version 0.2.3
 
 =cut 
 
 use Exporter 'import';
-our @EXPORT_OK = qw( equal overlap relative );
+our @EXPORT_OK = qw( equal overlap relative intersection );
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
 use overload '==' => \&equal, '<=>' => \&relative, '""' => \&string;
@@ -37,6 +37,9 @@ my $STRAND_INDEX = 2;
 our $INT_REGEX     = qr/^[+-]?\d+$/;
 our $POS_INT_REGEX = qr/^\d+$/;
 our $STRAND_REGEX  = qr/^[+-]?[01]$/;
+
+our @LU  = qw(lower upper);
+our @LUS = qw(lower upper strand);
 
 my $BOUNDS_WIDTH = 6;
 
@@ -388,7 +391,7 @@ Returns a string for the bounds.
           sprintf q{[ %1s %s %s ] < 5' %s %s 3' >},
           ( defined($strand) ? $STRAND_MAP[$strand] : '?' ),
           map { sprintf "%${BOUNDS_WIDTH}d", $_ }
-          map { $self->$_ || 0 } qw( lower upper end5 end3 );
+          map { $self->$_ } qw( lower upper end5 end3 );
     }
 }
 
@@ -417,7 +420,7 @@ Returns true if the first bound is outside the second.
 =cut
 
 sub outside {
-    my ( $a, $b ) = validate_pos( @_, ( { can => [qw(lower upper)] } ) x 2 );
+    my ( $a, $b ) = validate_pos( @_, ( { can => \@LU } ) x 2 );
     return ( ( $a->lower <= $b->lower ) && ( $a->upper >= $b->upper ) );
 }
 
@@ -441,21 +444,16 @@ Returns true if the bounds have same endpoints and orientation.
 
 =cut
 
-{
+sub equal {
 
-    # Comparisons to be run
-    my @COMPARISONS = qw( lower upper strand );
+    # Make sure that both objects can run the comparison functions
+    my ( $a, $b ) = validate_pos( @_, ( { can => \@LUS } ) x 2, 0 );
 
-    sub equal {
-        # Make sure that both objects can run the comparison functions
-        my ( $a, $b ) = validate_pos( @_, ( { can => \@COMPARISONS } ) x 2, 0 );
+    # Return false if a comparison failed
+    foreach (@LUS) { return 0 if ( $a->$_ != $b->$_ ) }
 
-        # Return false if a comparison failed
-        foreach (@COMPARISONS) { return 0 if ( $a->$_ != $b->$_ ) }
-
-        # Return true if all comparisons succeeded
-        return 1;
-    }
+    # Return true if all comparisons succeeded
+    return 1;
 }
 
 =head2 overlap
@@ -468,7 +466,7 @@ Returns true if the two bounds overlap, false otherwise;
 =cut
 
 sub overlap {
-    my ( $a, $b ) = validate_pos( @_, ( { can => [qw(lower upper)] } ) x 2 );
+    my ( $a, $b ) = validate_pos( @_, ( { can => \@LU } ) x 2 );
     return ( ( $a->lower < $b->upper ) && ( $a->upper > $b->lower ) );
 }
 
@@ -485,8 +483,38 @@ sub overlap {
 =cut
 
 sub relative {
-    my ( $a, $b ) = validate_pos( @_, ( { can => [qw(lower upper)] } ) x 2, 0 );
+    my ( $a, $b ) = validate_pos( @_, ( { can => \@LU } ) x 2, 0 );
     return ( $a->lower <=> $b->lower ) || ( $a->upper <=> $b->upper );
+}
+
+=head1 COMBINATION METHODS
+
+Returns a new set of bounds given two bounds
+
+=cut
+
+=head2 intersection
+
+    my $bounds = $a->intersection($b);
+    my $bounds = intersection( $a, $b ); 
+
+Returns the intersection of two bounds. If they don't overlap, return undef.
+
+=cut
+
+sub intersection {
+    my ( $a, $b ) = validate_pos( @_, ( { can => \@LUS } ) x 2 );
+
+    return undef unless ( overlap( $a, $b ) );
+
+    my $lower = max( map { $_->lower } $a, $b );
+    my $upper = min( map { $_->upper } $a, $b );
+    my $length = $upper - $lower;
+
+    my @strands = map { $_->strand } $a, $b;
+    return __PACKAGE__->new( $lower, $length, $strands[0] )
+      if ( $strands[0] == $strands[1] );
+    return __PACKAGE__->new( $lower, $length );
 }
 
 =head1 AUTHOR

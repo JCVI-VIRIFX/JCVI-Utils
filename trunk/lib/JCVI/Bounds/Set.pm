@@ -47,6 +47,30 @@ sub new {
     return $self;
 }
 
+=head1 BOUNDS MAKERS
+
+These functions create new bounds objects
+
+=cut
+
+=head2 bounds
+
+    my $bounds = $set->bounds();
+
+Return a bounds object with the same endpoints and strand as the set.
+
+=cut
+
+sub bounds {
+    my $self = shift;
+
+    my $lower  = $self->lower;
+    my $upper  = $self->upper;
+    my $length = $upper - $lower;
+
+    return JCVI::Bounds->new( $lower, $length, $self->strand() );
+}
+
 =head1 ARRAY BASED METHODS
 
 These are the methods that treat the set as an array
@@ -156,39 +180,43 @@ Return distance between upper and lower
 
 sub length {
     my $self = shift;
+    return undef unless (@$self);
     return $self->upper - $self->lower;
 }
 
-=head2 end5/end3
+=head2 end5
 
-These are implemented by stealing from JCVI::Bounds. Set doesn't inherit
-from Bounds, but these functions are generic, so no point in reimplenting them.
+Stolen from JCVI::Bounds
 
 =cut
 
-{
-    no strict 'refs';
-    my $package = __PACKAGE__;
-    my $bounds  = 'JCVI::Bounds';
+*end5 = \&JCVI::Bounds::end5;
 
-    eval "require $bounds;";
+=head2 end3
 
-    foreach my $sub (
-        qw(
-        end5
-        end3
-        _end
-        string
-        sequence
-        _validate_sequence
-        outside
-        inside
-        relative
-        )
-      )
-    {
-        *{"${package}::${sub}"} = \&{"${bounds}::${sub}"};
-    }
+Stolen from JCVI::Bounds
+
+=cut
+
+*end3 = \&JCVI::Bounds::end3;
+
+sub _end {
+    my $self = shift;
+    return undef unless (@$self);
+    &JCVI::Bounds::_end($self, @_);
+}
+
+=head2 string
+
+Extend the one in JCVI::Bounds
+
+=cut
+
+sub string {
+    my $self = shift;
+    
+    return '[ ]' unless (@$self);
+    &JCVI::Bounds::string($self, @_);
 }
 
 1;

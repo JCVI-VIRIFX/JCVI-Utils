@@ -1,14 +1,19 @@
 Revision history for JCVI-Bounds
 
-0.2.2   Apr 15, 2009
+0.2.3   Apr 16 2009
+  - Added intersection to Bounds
+  - Added bounds method to Set
+  - Cleaned up inheritance from Bounds in Set
+
+0.2.2   Apr 15 2009
   - Added JCVI::Bounds::Set
   - Polished documentation in Bounds
 
-0.2.1   Apr 15, 2009
+0.2.1   Apr 15 2009
   - Put use version on same line as $VERSION declared
   - Added META.yml so make dist would work
 
-0.2.0   Apr 15, 2009
+0.2.0   Apr 15 2009
   - Moved to JCVI::Bounds
   - Implemented as an arrayref with just 3 values
   - Quicker than using Class::Accessor::Validing
