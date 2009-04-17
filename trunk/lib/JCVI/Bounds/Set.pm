@@ -14,8 +14,6 @@ JCVI::Bounds::Set - A set of bounds
 
 =cut 
 
-use overload '""' => \&string, '<=>' => \&relative;
-
 use Carp;
 use List::Util qw(reduce min max);
 use Params::Validate;
@@ -130,16 +128,28 @@ sub strand {
 
     return undef unless (@$self);
 
-    my $strand = reduce {
-        return 2 if ( $a == 2 );
-        return 2 if ( ( $a || 0 ) * ( $b || 0 ) == -1 );
-        return $b || $a if ( defined $a );
-        return $a || $b;
-    }
-    map { $_->strand } @$self;
+    my $strand = $self->[0]->strand;
+    for ( my $i = 1 ; $i < @$self ; $i++ ) {
+        my $current = $self->[$i]->strand;
 
-    return $strand if ( $strand != 2 );
-    return undef;
+        if ($strand) {
+            if ($current) {
+
+                # Return undef if two adjacent features are on opposite strands
+                # This means that one feature has strand == 1, and the other
+                # has strand == -1. A quick/easy test is to see if the product
+                # of the two strands is -1
+                return undef if ( $strand * $current == -1 );
+            }
+
+            next;
+        }
+
+        # Assign current to strand
+        $strand = $current if ( defined $current );
+    }
+    
+    return $strand;
 }
 
 =head2 lower
@@ -203,7 +213,7 @@ Stolen from JCVI::Bounds
 sub _end {
     my $self = shift;
     return undef unless (@$self);
-    &JCVI::Bounds::_end($self, @_);
+    &JCVI::Bounds::_end( $self, @_ );
 }
 
 =head2 string
@@ -214,9 +224,9 @@ Extend the one in JCVI::Bounds
 
 sub string {
     my $self = shift;
-    
+
     return '[ ]' unless (@$self);
-    &JCVI::Bounds::string($self, @_);
+    &JCVI::Bounds::string( $self, @_ );
 }
 
 1;

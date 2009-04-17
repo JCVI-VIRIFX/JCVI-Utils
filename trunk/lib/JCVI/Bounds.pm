@@ -24,7 +24,11 @@ use Exporter 'import';
 our @EXPORT_OK = qw( equal overlap relative intersection );
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
-use overload '==' => \&equal, '<=>' => \&relative, '""' => \&string;
+use overload
+  '=='   => \&equal,
+  '<=>'  => \&relative,
+  '""'   => \&string,
+  'bool' => \&_bool;
 
 use Carp;
 use List::Util qw( min max );
@@ -393,6 +397,10 @@ Returns a string for the bounds.
           map { sprintf "%${BOUNDS_WIDTH}d", $_ }
           map { $self->$_ } qw( lower upper end5 end3 );
     }
+}
+
+sub _bool {
+    return 1;
 }
 
 =head1 COMPARISON METHODS

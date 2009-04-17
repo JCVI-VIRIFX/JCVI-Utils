@@ -19,18 +19,21 @@ my @e1 = (
     [ [ 3, 5 ], [ 3, 6 ], [ 3, 7, -1 ], [ 3, 8, -1 ] ]
 );
 
-foreach my $a (@bounds) {
+foreach my $i (0..3) {
+    $a = $bounds[$i];
+
     my $e2 = shift @e1;
-    foreach my $b (@bounds) {
+
+    foreach my $j (0..3) {
+        my $b = $bounds[$j];
+        
         my $e3 = shift @$e2;
 
-        my $i = $a->intersection($b);
+        my $c = $a->intersection($b);
 
-        diag("$a");
-        diag("$b");
-        is( $i->lower,  $e3->[0], "lower" );
-        is( $i->upper,  $e3->[1], "upper" );
-        is( $i->strand, $e3->[2], "strand" )
+        is( $c->lower,  $e3->[0], "$i $j lower" );
+        is( $c->upper,  $e3->[1], "$i $j upper" );
+        is( $c->strand, $e3->[2], "$i $j strand" )
           if ( $e3->[2] );
     }
 }
