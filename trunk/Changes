@@ -1,5 +1,8 @@
 Revision history for JCVI-Bounds
 
+0.2.4   Apr 17 2009
+  - Fixed bug in Bounds::e53 where end5 == end3
+
 0.2.3   Apr 16 2009
   - Added intersection to Bounds
   - Added bounds method to Set
