@@ -14,8 +14,10 @@ JCVI::Bounds::Set - A set of bounds
 
 =cut 
 
+use base qw(JCVI::Bounds::Operations);
+
 use Carp;
-use List::Util qw(reduce min max);
+use List::Util qw(min max sum);
 use Params::Validate;
 
 use JCVI::Bounds;
@@ -86,7 +88,7 @@ Sort bounds in the set
 sub sort {
     my $self  = shift;
     my $class = ref $self;
-    @$self = sort { $a <=> $b } @$self;
+    @$self = sort { JCVI::Bounds::relative( $a, $b ) } @$self;
     bless $self, $class;
 }
 
@@ -148,7 +150,7 @@ sub strand {
         # Assign current to strand
         $strand = $current if ( defined $current );
     }
-    
+
     return $strand;
 }
 
@@ -216,17 +218,46 @@ sub _end {
     &JCVI::Bounds::_end( $self, @_ );
 }
 
-=head2 string
+=head2 sequence
 
-Extend the one in JCVI::Bounds
+Stolen from JCVI::Bounds
 
 =cut
 
-sub string {
-    my $self = shift;
+*sequence = \&JCVI::Bounds::sequence;
 
-    return '[ ]' unless (@$self);
-    &JCVI::Bounds::string( $self, @_ );
+=head1 ADAPTED METHODS
+
+These are methods that are similar to some of the bounds-like ones, but are
+relevant only in a set context
+
+=cut
+
+=head2 spliced
+
+Spliced sequence
+
+=cut
+
+sub spliced {
+    my $self = shift;
+    return undef unless (@$self);
+    
+    # Join the sequence from each seq_ref from calling sequence on every bound
+    my $sequence = join( '', map { $$_ } map { $_->sequence(@_) } @$self );
+    return \$sequence;
+}
+
+=head2 splength
+
+Spliced length
+
+=cut
+
+sub splength {
+    my $self = shift;
+    return undef unless (@$self);
+    return sum map { $_->length } @$self;
 }
 
 1;

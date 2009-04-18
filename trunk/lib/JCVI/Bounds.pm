@@ -8,7 +8,7 @@ package JCVI::Bounds;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.2.4');
+use version; our $VERSION = qv('0.3.0');
 
 =head1 NAME
 
@@ -16,19 +16,15 @@ JCVI::Bounds - class for boundaries on genetic sequence data
 
 =head1 VERSION
 
-Version 0.2.4
+Version 0.3.0
 
 =cut 
+
+use base qw(JCVI::Bounds::Operations);
 
 use Exporter 'import';
 our @EXPORT_OK = qw( equal overlap relative intersection );
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
-
-use overload
-  '=='   => \&equal,
-  '<=>'  => \&relative,
-  '""'   => \&string,
-  'bool' => \&_bool;
 
 use Carp;
 use List::Util qw( min max );
@@ -69,8 +65,6 @@ and lower bounds.
     my $end5 = $bounds->end5;     # 134
     my $end3 = $bounds->end3;     # 87
     
-    my @sorted = sort { $a <=> $b } @bounds;
-
 =cut
 
 =head1 DESCRIPTION
@@ -372,31 +366,6 @@ sub _validate_sequence {
             }
         }
     );
-}
-
-=head2 string
-
-    print $bounds->string;
-    print $bounds;
-
-Returns a string for the bounds.
-
-=cut
-
-{
-
-    # Map from (0, 1, -1) to (. + -)
-    my @STRAND_MAP = qw( . + - );
-
-    sub string {
-        my $self   = shift;
-        my $strand = $self->strand();
-        return
-          sprintf q{[ %1s %s %s ] < 5' %s %s 3' >},
-          ( defined($strand) ? $STRAND_MAP[$strand] : '?' ),
-          map { sprintf "%${BOUNDS_WIDTH}d", $_ }
-          map { $self->$_ } qw( lower upper end5 end3 );
-    }
 }
 
 sub _bool {
