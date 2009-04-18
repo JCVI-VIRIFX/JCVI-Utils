@@ -334,40 +334,6 @@ sub _validate_extend {
     return ( $lower, $upper );
 }
 
-=head2 sequence
-
-    $bounds_seq_ref = $bounds->sequence($seq_ref);
-
-Extract substring from a sequence reference. Returned as a reference. The same
-as:
-
-    substr($sequence, $bounds->lower, $bounds->length);
-
-=cut
-
-sub sequence {
-    my $self      = shift;
-    my ($seq_ref) = $self->_validate_sequence(@_);
-    my $substr    = substr( $$seq_ref, $self->lower, $self->length );
-    return \$substr;
-}
-
-# Make sure the sequence is a scalarref and that the upper bound is contained
-sub _validate_sequence {
-    my $self = shift;
-    return validate_pos(
-        @_,
-        {
-            type      => Params::Validate::SCALARREF,
-            callbacks => {
-                'bounds within sequence' => sub {
-                    return ( CORE::length( ${ $_[0] } ) >= $self->upper );
-                  }
-            }
-        }
-    );
-}
-
 sub _bool {
     return 1;
 }

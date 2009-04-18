@@ -99,7 +99,7 @@ look like:
         return '[ ? ? ? ]' unless ( defined($lower) && defined($upper) );
 
         my $strand;
-        $strand = '?' unless ($obj->can('strand'));
+        $strand = '?' unless ( $obj->can('strand') );
         $strand = $obj->strand;
         $strand = defined($strand) ? $STRAND_MAP[$strand] : '?';
 
@@ -143,12 +143,33 @@ like:
     }
 }
 
+=head2 sequence
+
+    $sub_ref = $obj->sequence($seq_ref);
+
+Extract substring from a sequence reference. Returned as a reference. The same
+as:
+
+    substr($sequence, $obj->lower, $obj->length);
+
+=cut
+
 sub sequence {
-    my $obj = shift;
+    my $obj     = shift;
+    my $seq_ref = shift;
 
-    my $lower = $obj->lower;
-    my $upper = $obj->upper;
+    return undef unless ( $obj->can('lower') && $obj->can('length') );
 
+    my $lower  = $obj->lower;
+    my $length = $obj->length;
+
+    return undef unless ( defined($lower) && defined($length) );
+
+    croak 'Object not contained in sequence'
+      if ( length($seq_ref) < $lower + $length );
+    
+    my $substr = substr($$seq_ref, $lower, $length);
+    return \$substr;
 }
 
 1;
