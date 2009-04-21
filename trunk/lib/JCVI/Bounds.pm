@@ -20,7 +20,7 @@ Version 0.3.0
 
 =cut 
 
-use base qw(JCVI::Bounds::Operations);
+use base qw( JCVI::Bounds::Interface );
 
 use Exporter 'import';
 our @EXPORT_OK = qw( equal overlap relative intersection );
@@ -235,57 +235,6 @@ Get the phase (length % 3).
 
 sub phase {
     return shift->length % 3;
-}
-
-=head2 end5
-
-    $end5 = $bounds->end5();
-    $bounds->end5($end5);
-
-Get/set 5' end
-
-=cut
-
-sub end5 { shift->_end( 1, @_ ) }
-
-=head2 end3
-
-    $end3 = $bounds->end3();
-    $bounds->end3($end3);
-
-Get/set 3' end
-
-=cut
-
-sub end3 { shift->_end( -1, @_ ) }
-
-# Does the actual work of figuring out the end
-sub _end {
-    my $self = shift;
-
-    # $test is "On what strand does the 5' end correspond to the lower bound?"
-    my $test = shift;
-
-    my ($end) = validate_pos( @_, { regex => $POS_INT_REGEX, optional => 1 } );
-
-    # If strand isn't defined or 0:
-    # Return the end if end5 = end3 (length == 1)
-    # Return undef (since we don't know which is which)
-    my $strand = $self->strand;
-    unless ($strand) {
-        if ( $self->length != 1 ) {
-            return undef;
-        }
-        return $self->lower + 1;
-    }
-
-    # Get the bound based upon the test
-    # For lower bounds, we want to offset the bound by 1
-    my ( $bound, $offset ) = $strand == $test ? ( 'lower', 1 ) : ( 'upper', 0 );
-
-    # Return/set the bound
-    return $self->$bound() + $offset unless ( defined $end );
-    return $self->$bound( $end - $offset ) + $offset;
 }
 
 =head1 PUBLIC METHODS

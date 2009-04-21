@@ -10,7 +10,7 @@ JCVI::Bounds::Interface - interface for bounds objects
 =cut
 
 use Carp;
-use Params::Validate qw(validate_with);
+use Params::Validate qw(validate validate_pos validate_with);
 
 use overload '""' => \&_string;
 
@@ -133,11 +133,17 @@ sub _end {
     # If strand isn't defined or 0:
     # Return the end if end5 = end3 (length == 1)
     # Return undef (since we don't know which is which)
+    # Don't allow assignment
     my $strand = $self->strand;
     unless ($strand) {
-        if ( $self->length != 1 ) {
-            return undef;
-        }
+        my $length = $self->length();
+
+        return undef
+          unless (
+            ( defined $length ) &&
+            ( $length = 1 )
+          );
+
         return $self->lower + 1;
     }
 
@@ -302,8 +308,8 @@ sub sequence {
 
     croak 'Object not contained in sequence'
       if ( CORE::length($$seq_ref) < $lower + $length );
-    
-    my $substr = substr($$seq_ref, $lower, $length);
+
+    my $substr = substr( $$seq_ref, $lower, $length );
     return \$substr;
 }
 

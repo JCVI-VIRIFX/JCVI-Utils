@@ -14,7 +14,7 @@ JCVI::Bounds::Set - A set of bounds
 
 =cut 
 
-use base qw(JCVI::Bounds::Operations);
+use base qw( JCVI::Bounds::Interface );
 
 use Carp;
 use List::Util qw(min max sum);
@@ -53,16 +53,18 @@ These functions create new bounds objects
 
 =cut
 
-=head2 bounds
+=head2 to_bounds
 
-    my $bounds = $set->bounds();
+    my $bounds = $set->to_bounds();
 
 Return a bounds object with the same endpoints and strand as the set.
 
 =cut
 
-sub bounds {
+sub to_bounds {
     my $self = shift;
+
+    return undef unless (@$self);
 
     my $lower  = $self->lower;
     my $upper  = $self->upper;
@@ -164,10 +166,7 @@ Return lower bound
 
 # TODO allow setting of bounds
 
-sub lower {
-    my $self = shift;
-    return min map { $_->lower } @$self;
-}
+sub lower { return min map { $_->lower } @{shift()} }
 
 =head2 upper
 
@@ -177,54 +176,13 @@ Return upper bound
 
 =cut
 
-sub upper {
-    my $self = shift;
-    return max map { $_->upper } @$self;
-}
-
-=head2 length
-
-    my $length = $set->length();
-
-Return distance between upper and lower
-
-=cut
-
-sub length {
-    my $self = shift;
-    return undef unless (@$self);
-    return $self->upper - $self->lower;
-}
-
-=head2 end5
-
-Stolen from JCVI::Bounds
-
-=cut
-
-*end5 = \&JCVI::Bounds::end5;
-
-=head2 end3
-
-Stolen from JCVI::Bounds
-
-=cut
-
-*end3 = \&JCVI::Bounds::end3;
+sub upper { return max map { $_->upper } @{shift()} }
 
 sub _end {
     my $self = shift;
     return undef unless (@$self);
-    &JCVI::Bounds::_end( $self, @_ );
+    $self->SUPER::_end( @_ );
 }
-
-=head2 sequence
-
-Stolen from JCVI::Bounds
-
-=cut
-
-*sequence = \&JCVI::Bounds::sequence;
 
 =head1 ADAPTED METHODS
 

@@ -50,6 +50,6 @@ is( $bounds->end3,   51,  'end3 correct' );
 
 ok( JCVI::Bounds->e53( 1, 10 ), 'e53 works' );
 
-my $e53 = JCVI::Bounds->e53(150, 51);
-is ($e53, $bounds, 'e53 == new');
+my $e53 = JCVI::Bounds->e53( 150, 51 );
+is_deeply( $e53, $bounds, 'e53 == new' );
 

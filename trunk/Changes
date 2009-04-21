@@ -1,5 +1,8 @@
 Revision history for JCVI-Bounds
 
+0.3.0   Apr 21 2009
+  - Moved common functions to JCVI::Bounds::Interface
+
 0.2.4   Apr 17 2009
   - Fixed bug in Bounds::e53 where end5 == end3
   - Suppressed warnings in Set::strand
