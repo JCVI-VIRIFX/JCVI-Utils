@@ -12,7 +12,9 @@ JCVI::Bounds::Interface - interface for bounds objects
 use Carp;
 use Params::Validate qw(validate validate_pos validate_with);
 
-use overload '""' => \&_string;
+use overload
+  '""'  => \&_string,
+  '<=>' => \&spaceship;
 
 our $INT_REGEX       = qr/^[+-]?\d+$/;
 our $POS_0_INT_REGEX = qr/^\d+$/;
@@ -139,10 +141,8 @@ sub _end {
         my $length = $self->length();
 
         return undef
-          unless (
-            ( defined $length ) &&
-            ( $length = 1 )
-          );
+          unless ( ( defined $length )
+            && ( $length = 1 ) );
 
         return $self->lower + 1;
     }
@@ -311,6 +311,22 @@ sub sequence {
 
     my $substr = substr( $$seq_ref, $lower, $length );
     return \$substr;
+}
+
+=head1 COMPARISONS
+
+=cut
+
+sub spaceship {
+    my ( $a, $b ) = @_;
+
+    foreach my $bound ( $a, $b ) {
+        foreach my $method (qw(lower upper)) {
+            return undef unless ( $bound->can($method) );
+        }
+    }
+
+    return ( $a->lower() <=> $b->lower() ) || ( $a->upper() <=> $b->upper() );
 }
 
 1;

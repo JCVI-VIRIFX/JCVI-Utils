@@ -90,7 +90,7 @@ Sort bounds in the set
 sub sort {
     my $self  = shift;
     my $class = ref $self;
-    @$self = sort { JCVI::Bounds::relative( $a, $b ) } @$self;
+    @$self = sort { $a <=> $b } @$self;
     bless $self, $class;
 }
 
