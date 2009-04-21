@@ -8,7 +8,7 @@ package JCVI::Bounds;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.3.0');
+use version; our $VERSION = qv('0.3.1');
 
 =head1 NAME
 
@@ -16,14 +16,14 @@ JCVI::Bounds - class for boundaries on genetic sequence data
 
 =head1 VERSION
 
-Version 0.3.0
+Version 0.3.1
 
 =cut 
 
 use base qw( JCVI::Bounds::Interface );
 
 use Exporter 'import';
-our @EXPORT_OK = qw( equal overlap relative intersection );
+our @EXPORT_OK = qw( equal overlap intersection );
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
 use Carp;
@@ -124,6 +124,28 @@ sub e53 {
     return bless( [ --$e5, $e3 - $e5, 1 ],  $class ) if ( $e5 < $e3 );
     return bless( [ --$e3, $e5 - $e3, -1 ], $class ) if ( $e3 < $e5 );
     return bless( [ $e5 - 1, 1 ], $class );
+}
+
+=head2 lus
+
+    my $bounds = JCVI::Bounds->lus($lower, $upper);
+    my $bounds = JCVI::Bounds->lus($lower, $upper, $strand);
+    
+Create the class given lower and upper bounds, and possibly strand.
+
+=cut
+
+sub lus {
+    my $class = shift;
+    my $self  = [
+        validate_pos(
+            @_,
+            ( { regex => $POS_INT_REGEX } ) x 2,
+            { optional => 1, regex => $STRAND_REGEX }
+        )
+    ];
+    $self->[1] -= $self->[0];
+    bless $self, $class;
 }
 
 =head2 ul
@@ -360,23 +382,6 @@ Returns true if the two bounds overlap, false otherwise;
 sub overlap {
     my ( $a, $b ) = validate_pos( @_, ( { can => \@LU } ) x 2 );
     return ( ( $a->lower < $b->upper ) && ( $a->upper > $b->lower ) );
-}
-
-=head2 relative
-
-    my $relative = $a->relative($b);
-    my $relative = relative($a, $b);
-    my $relative = $a <=> $b;
-
- Returns -1, 0 or 1 depending upon the positions of two features. Tries to
- order first based on the lower bound, and if they are equal, tries to order on
- the upper bound. Otherwise, returns 0.
-
-=cut
-
-sub relative {
-    my ( $a, $b ) = validate_pos( @_, ( { can => \@LU } ) x 2, 0 );
-    return ( $a->lower <=> $b->lower ) || ( $a->upper <=> $b->upper );
 }
 
 =head1 COMBINATION METHODS

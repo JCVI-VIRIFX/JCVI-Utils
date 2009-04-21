@@ -140,9 +140,7 @@ sub _end {
     unless ($strand) {
         my $length = $self->length();
 
-        return undef
-          unless ( ( defined $length )
-            && ( $length = 1 ) );
+        return undef unless ( ( defined $length ) && ( $length == 1 ) );
 
         return $self->lower + 1;
     }
@@ -322,6 +320,10 @@ sub sequence {
     my @sorted = sort { $a->spaceship($b) } @bounds;
     my @sorted = sort { $a <=> $b } @bounds;
 
+Spaceship operator for bounds. Returns -1, 0 or 1 depending upon the relative
+position of two bounds. Tries to order based upon lower bound, but if those are
+the same, then it tries to order based upon upper bound.
+
 =cut
 
 sub spaceship {
@@ -330,7 +332,7 @@ sub spaceship {
     eval { validate_pos( @_, ( { can => [qw(lower upper)] } ) x 2, 0 ) };
     return undef if ($@);
 
-    return ( $a->lower() <=> $b->lower() ) || ( $a->upper() <=> $b->upper() );
+    return ( $a->lower <=> $b->lower ) || ( $a->upper <=> $b->upper );
 }
 
 1;
