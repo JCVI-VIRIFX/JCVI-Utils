@@ -317,14 +317,18 @@ sub sequence {
 
 =cut
 
+=head2 spaceship
+
+    my @sorted = sort { $a->spaceship($b) } @bounds;
+    my @sorted = sort { $a <=> $b } @bounds;
+
+=cut
+
 sub spaceship {
     my ( $a, $b ) = @_;
 
-    foreach my $bound ( $a, $b ) {
-        foreach my $method (qw(lower upper)) {
-            return undef unless ( $bound->can($method) );
-        }
-    }
+    eval { validate_pos( @_, ( { can => [qw(lower upper)] } ) x 2, 0 ) };
+    return undef if ($@);
 
     return ( $a->lower() <=> $b->lower() ) || ( $a->upper() <=> $b->upper() );
 }
