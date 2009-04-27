@@ -8,7 +8,7 @@ package JCVI::Bounds;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.3.1');
+use version; our $VERSION = qv('0.3.2');
 
 =head1 NAME
 
@@ -16,7 +16,7 @@ JCVI::Bounds - class for boundaries on genetic sequence data
 
 =head1 VERSION
 
-Version 0.3.1
+Version 0.3.2
 
 =cut 
 
@@ -395,14 +395,14 @@ Returns a new set of bounds given two bounds
     my $bounds = $a->intersection($b);
     my $bounds = intersection( $a, $b ); 
 
-Returns the intersection of two bounds. If they don't overlap, return undef.
+Returns the intersection of two bounds. If they don't overlap, return nothing.
 
 =cut
 
 sub intersection {
     my ( $a, $b ) = validate_pos( @_, ( { can => \@LUS } ) x 2 );
 
-    return undef unless ( overlap( $a, $b ) );
+    return unless ( overlap( $a, $b ) );
 
     my $lower = max( map { $_->lower } $a, $b );
     my $upper = min( map { $_->upper } $a, $b );

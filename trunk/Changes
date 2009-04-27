@@ -1,5 +1,8 @@
 Revision history for JCVI-Bounds
 
+0.3.2   Apr 27 2009
+  - Intersection returns nothing, not undef if bounds don't overlap
+
 0.3.1   Apr 21 2009
   - Fixed spaceship function in JCVI::Bounds::Interface
   - Added lus constructor to JCVI::Bounds
