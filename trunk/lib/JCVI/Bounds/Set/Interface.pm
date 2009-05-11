@@ -38,7 +38,8 @@ sub _bounds { croak '_bounds method not defined' }
 
     my $bounds = $set->bounds();
 
-Returns an arrayref of the bounds in the set.
+Returns an arrayref of the bounds in the set. This array can be spliced without
+affect your bounds object.
 
 =cut
 
