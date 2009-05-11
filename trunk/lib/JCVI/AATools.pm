@@ -1,9 +1,9 @@
 # JCVI::AATools
 #
-# $Author: kgalinsk $
-# $Date: 2008-11-14 10:35:59 -0500 (Fri, 14 Nov 2008) $
-# $Revision: 23931 $
-# $HeadURL: http://isvn.tigr.org/ANNOTATION/DM_Scripts/lib/JCVI/AATools.pm $
+# $Author$
+# $Date$
+# $Revision$
+# $HeadURL$
 
 =head1 NAME
 
