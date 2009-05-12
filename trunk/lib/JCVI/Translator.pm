@@ -257,7 +257,7 @@ sub translate {
     );
 
     # Check the sanitized value separately
-    my $sanitized = _is_sanitized(@p);
+    my $sanitized = $self->_is_sanitized(@p);
 
     # Clean the sequence and cache it
     $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
@@ -334,17 +334,16 @@ sub translate {
 }
 
 sub _is_sanitized {
-    my ($p) = @_;
+    my $p = $_[1];
 
-    my $sanitized = $DEFAULT_SANITIZED;
-    if ( exists $p->{sanitized} ) {
-        $sanitized = $p->{sanitized};
-        croak qq{Invalid value for sanitized "$sanitized" (must be 0 or 1) }
-          unless ( $sanitized =~ m/^[01]$/ );
-        delete $p->{sanitized};
-    }
+    return $DEFAULT_SANITIZED unless ( exists $p->{sanitized} );
 
-    return $sanitized;
+    my $s = $p->{sanitized};
+    croak qq{Invalid value for sanitized "$s" (must be 0 or 1) }
+      unless ( $s =~ m/^[01]$/ );
+    delete $p->{sanitized};
+
+    return $s;
 }
 
 =head2 translate6
@@ -400,12 +399,11 @@ sub translate6 {
     );
 
     # Check the sanitized value separately
-    my $sanitized = _is_sanitized(@p);
+    my $sanitized = $self->_is_sanitized(@p);
 
     # Clean the sequence and cache it
     $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
     $self->base->set_seq($seq_ref);
-
 
     my %p = validate(
         @p,
@@ -507,7 +505,7 @@ sub translate_exons {
     );
 
     # Check the sanitized value separately
-    my $sanitized = _is_sanitized(@p);
+    my $sanitized = $self->_is_sanitized(@p);
 
     # Clean the sequence and cache it
     $seq_ref = cleanDNA($seq_ref) unless ($sanitized);
