@@ -34,17 +34,6 @@ structure for speed.
 
 sub _bounds { croak '_bounds method not defined' }
 
-=head2 bounds
-
-    my $bounds = $set->bounds();
-
-Returns an arrayref of the bounds in the set. This array can be spliced without
-affect your bounds object.
-
-=cut
-
-sub bounds { [ @{ shift->_bounds() } ] }
-
 =head1 BOUNDS MAKERS
 
 These functions create new bounds objects
