@@ -198,7 +198,8 @@ sub spliced {
     return undef unless (@$bounds);
 
     # Join the sequence from every bound
-    my $sequence = join( '', map { ${ $_->sequence(@_) } } @$bounds );
+    my $sequence =
+      join( '', map { ${ $_->sequence(@_) } } sort { $a <=> $b } @$bounds );
     return \$sequence;
 }
 
