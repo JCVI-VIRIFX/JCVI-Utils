@@ -1,5 +1,10 @@
 #!/usr/bin/env perl
 
+# $Author$
+# $Date$
+# $Revision$
+# $HeadURL$
+
 use strict;
 #use warnings;
 
@@ -52,6 +57,10 @@ foreach my $fh (@handles) {
 
     close $fh;
 }
+
+=head1 NAME
+
+translate_fasta.pl - translate fasta files
 
 =head1 OPTIONS
 
