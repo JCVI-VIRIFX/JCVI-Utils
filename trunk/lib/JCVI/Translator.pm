@@ -66,7 +66,7 @@ package JCVI::Translator;
 use strict;
 use warnings;
 
-use version; our $VERSION = qv('0.5.6');
+use version; our $VERSION = qv('0.5.7');
 
 use base qw(Class::Accessor::Fast);
 __PACKAGE__->mk_accessors(qw(table base));
@@ -78,25 +78,9 @@ use Params::Validate;
 use JCVI::Translator::Table;
 use JCVI::Translator::Base;
 
-use JCVI::DNATools qw(
-  %degenerate_map
-  $degen_match
-  @nucs
-  $nuc_match
-  cleanDNA
-  reverse_complement
-);
-
-use JCVI::AATools qw(
-  %ambiguous_forward
-  $aa_match
-);
+use JCVI::DNATools qw( $nuc_match cleanDNA );
 
 # Defaults. Used by the validation functions.
-our $DEFAULT_ID        = 1;
-our $DEFAULT_TYPE      = 'id';
-our $DEFAULT_COMPLETE  = 0;
-our $DEFAULT_BOOTSTRAP = 1;
 our $DEFAULT_STRAND    = 1;
 our $DEFAULT_PARTIAL   = 0;
 our $DEFAULT_SANITIZED = 0;
