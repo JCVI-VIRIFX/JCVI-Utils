@@ -71,7 +71,7 @@ and lower bounds.
 
 Store boundary information. Convert from interbase to end5/end3. Compute useful
 things like length and phase. Return sequence. Bounds are stored as an
-arrayref:
+arrayref (DO NOT ACCESS DIRECTLY - FOR DEVELOPERS OF JCVI::Bounds ONLY!!!):
 
     [ $lower, $length ]
     [ $lower, $length, $strand ]
@@ -80,7 +80,19 @@ Entitites are stored in this format to make things easy to validate.
 
     $lower  >= 0
     $length >= 0
-    $strand == -1, 0, 1, undef
+    $strand == -1, 0, 1, or undef
+    
+The meanings of the strand values are:
+
+    1:      + strand
+    -1:     - strand
+    0:      . neither strand
+    undef:  unknown strand
+
+Please be sure to differentiate between a strand of 0 and undef strand. Use 0
+when you know that the object is strandless, and undef when you don't know if
+the object is on the + strand, - strand, or is strandless. Seen e53 for an
+example of this in use.
 
 =cut
 
@@ -94,6 +106,14 @@ Entitites are stored in this format to make things easy to validate.
     my $bounds = JCVI::Bounds->new( $lower );
     my $bounds = JCVI::Bounds->new( $lower, $length );
     my $bounds = JCVI::Bounds->new( $lower, $length, $strand );
+
+Create a new bounds object. The three parameters are optional, but if you
+provide a subsequent parameter, a previous one must be supplied as well (i.e.
+if strand is provided, then length and lower bound must be provided as well).
+
+    lower:  lower bound, defaults to 0
+    length: length of bounds, defaults to 0
+    strand: strand of bounds, defaults to undef (unknown)
 
 =cut
 
@@ -113,7 +133,8 @@ sub new {
 
     my $bounds = JCVI::Bounds->e53($end5, $end3);
 
-Create the class given 5' and 3' end coordinates.
+Create the class given 5' and 3' end coordinates. If end5 == end3, then the
+strand is undef.
 
 =cut
 
@@ -186,11 +207,20 @@ sub lower {
 
     return $self->[$LOWER_INDEX] unless (@_);
 
-    croak 'Lower must be a non-negative integer'
-      unless ( $_[0] =~ /$POS_INT_REGEX/ );
-    $self->length( $self->upper() - $_[0] );
-    return $self->[$LOWER_INDEX] = $_[0];
+    my $new_lower = shift;
 
+    croak 'Lower must be a non-negative integer'
+      unless ( $new_lower =~ /$POS_INT_REGEX/ );
+
+    # Need to update the length so upper doesn't change
+    #   upper      = lower + length
+    #   upper      = old_lower + old_length = new_lower + new_length
+    #   new_length = old_lower + old_length - new_lower
+    
+    my $old_lower = $self->[$LOWER_INDEX];
+    $self->_set_length( $old_lower + $self->length() - $new_lower );
+
+    return $self->[$LOWER_INDEX] = $new_lower * 1;
 }
 
 =head2 upper
@@ -204,27 +234,34 @@ Get/set the upper bound.
 
 sub upper {
     my $self = shift;
+    
     return $self->lower() + $self->length() unless (@_);
     return $self->length( $_[0] - $self->lower );
 }
 
 =head2 length
 
-Get/set the length. The lower bound is the anchor (upper bound changes).
+Get the length.
 
     $length = $bounds->length;
-    $bounds->length($length);
 
 =cut
 
 sub length {
-    my $self = shift;
-    return $self->[$LENGTH_INDEX] unless (@_);
+    return shift->[$LENGTH_INDEX];
+}
+
+# Set/validate the length. The lower bound is the anchor (upper bound changes).
+
+sub _set_length {
+    my ($self, $length) = @_;
 
     croak 'Length must be a non-negative integer'
-      unless ( $_[0] =~ /$POS_INT_REGEX/ );
-    return $self->[$LENGTH_INDEX] = $_[0] * 1;
+      unless ( $length =~ /$POS_INT_REGEX/ );
+
+    return $self->[$LENGTH_INDEX] = $length;
 }
+
 
 =head2 strand
 
@@ -240,11 +277,14 @@ sub strand {
 
     return $self->[$STRAND_INDEX] unless (@_);
 
-    return delete $self->[$STRAND_INDEX] unless ( defined $_[0] );
+    my $strand = shift;
+
+    return delete $self->[$STRAND_INDEX] unless ( defined $strand );
 
     croak 'Value passed to strand must be undef, 0, 1, or -1'
-      unless ( $_[0] =~ /$STRAND_REGEX/ );
-    return $self->[$STRAND_INDEX] = $_[0] * 1;
+      unless ( $strand =~ /$STRAND_REGEX/ );
+
+    return $self->[$STRAND_INDEX] = $strand * 1;
 }
 
 =head2 phase
