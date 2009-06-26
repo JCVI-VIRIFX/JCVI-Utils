@@ -150,15 +150,23 @@ Return lower bound
 
 =cut
 
-# TODO allow setting of bounds
-
 sub lower {
     my $self = shift;
     $self->_lower( @_, $self->_bounds );
 }
 
 sub _lower {
-    return min map { $_->lower } @{ pop() };
+    my $bounds = pop();
+
+    my $min = min map { $_->lower } @$bounds;
+    return $min unless (@_);
+
+    # Get the bounds where lower bound == min
+    foreach my $bound ( grep { $_->lower == $min } @$bounds ) {
+        $bound->lower(@_);
+    }
+    
+    return $min;
 }
 
 =head2 upper
@@ -175,7 +183,17 @@ sub upper {
 }
 
 sub _upper {
-    return max map { $_->upper } @{ pop() };
+    my $bounds = pop();
+
+    my $max = max map { $_->upper } @$bounds;
+    return $max unless (@_);
+
+    # Get the bounds where upper bound == max
+    foreach my $bound ( grep { $_->upper == $max } @$bounds ) {
+        $bound->upper(@_);
+    }
+    
+    return $max;
 }
 
 =head1 ADAPTED METHODS
