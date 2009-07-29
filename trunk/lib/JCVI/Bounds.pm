@@ -8,6 +8,12 @@ package JCVI::Bounds;
 use strict;
 use warnings;
 
+use base qw( JCVI::Bounds::Interface );
+
+use Carp;
+use List::Util qw( min max );
+use Params::Validate;
+
 use version; our $VERSION = qv('0.3.2');
 
 =head1 NAME
@@ -17,31 +23,6 @@ JCVI::Bounds - class for boundaries on genetic sequence data
 =head1 VERSION
 
 Version 0.3.2
-
-=cut 
-
-use base qw( JCVI::Bounds::Interface );
-
-use Exporter 'import';
-our @EXPORT_OK = qw( equal overlap intersection );
-our %EXPORT_TAGS = ( all => \@EXPORT_OK );
-
-use Carp;
-use List::Util qw( min max );
-use Params::Validate;
-
-my $LOWER_INDEX  = 0;
-my $LENGTH_INDEX = 1;
-my $STRAND_INDEX = 2;
-
-our $INT_REGEX     = qr/^[+-]?\d+$/;
-our $POS_INT_REGEX = qr/^\d+$/;
-our $STRAND_REGEX  = qr/^[+-]?[01]$/;
-
-our @LU  = qw(lower upper);
-our @LUS = qw(lower upper strand);
-
-my $BOUNDS_WIDTH = 6;
 
 =head1 SYNOPSIS
 
@@ -65,13 +46,11 @@ and lower bounds.
     my $end5 = $bounds->end5;     # 134
     my $end3 = $bounds->end3;     # 87
     
-=cut
-
 =head1 DESCRIPTION
 
 Store boundary information. Convert from interbase to end5/end3. Compute useful
 things like length and phase. Return sequence. Bounds are stored as an
-arrayref (DO NOT ACCESS DIRECTLY - FOR DEVELOPERS OF JCVI::Bounds ONLY!!!):
+arrayref:
 
     [ $lower, $length ]
     [ $lower, $length, $strand ]
@@ -80,21 +59,17 @@ Entitites are stored in this format to make things easy to validate.
 
     $lower  >= 0
     $length >= 0
-    $strand == -1, 0, 1, or undef
-    
-The meanings of the strand values are:
-
-    1:      + strand
-    -1:     - strand
-    0:      . neither strand
-    undef:  unknown strand
-
-Please be sure to differentiate between a strand of 0 and undef strand. Use 0
-when you know that the object is strandless, and undef when you don't know if
-the object is on the + strand, - strand, or is strandless. Seen e53 for an
-example of this in use.
+    $strand == -1, 0, 1, undef
 
 =cut
+
+my $LOWER_INDEX  = 0;
+my $LENGTH_INDEX = 1;
+my $STRAND_INDEX = 2;
+
+our $INT_REGEX     = qr/^[+-]?\d+$/;
+our $POS_INT_REGEX = qr/^\d+$/;
+our $STRAND_REGEX  = qr/^[+-]?[01]$/;
 
 =head1 CONSTRUCTORS
 
@@ -106,14 +81,6 @@ example of this in use.
     my $bounds = JCVI::Bounds->new( $lower );
     my $bounds = JCVI::Bounds->new( $lower, $length );
     my $bounds = JCVI::Bounds->new( $lower, $length, $strand );
-
-Create a new bounds object. The three parameters are optional, but if you
-provide a subsequent parameter, a previous one must be supplied as well (i.e.
-if strand is provided, then length and lower bound must be provided as well).
-
-    lower:  lower bound, defaults to 0
-    length: length of bounds, defaults to 0
-    strand: strand of bounds, defaults to undef (unknown)
 
 =cut
 
@@ -133,8 +100,7 @@ sub new {
 
     my $bounds = JCVI::Bounds->e53($end5, $end3);
 
-Create the class given 5' and 3' end coordinates. If end5 == end3, then the
-strand is undef.
+Create the class given 5' and 3' end coordinates.
 
 =cut
 
@@ -204,23 +170,16 @@ Get/set the lower bound.
 
 sub lower {
     my $self = shift;
-
     return $self->[$LOWER_INDEX] unless (@_);
 
-    my $new_lower = shift;
-
+    # Validate the lower bound
     croak 'Lower must be a non-negative integer'
-      unless ( $new_lower =~ /$POS_INT_REGEX/ );
+      unless ( $_[0] =~ /$POS_INT_REGEX/ );
 
-    # Need to update the length so upper doesn't change
-    #   upper      = lower + length
-    #   upper      = old_lower + old_length = new_lower + new_length
-    #   new_length = old_lower + old_length - new_lower
-    
-    my $old_lower = $self->[$LOWER_INDEX];
-    $self->_set_length( $old_lower + $self->length() - $new_lower );
+    # Adjust the length and lower bound
+    $self->length( $self->upper() - $_[0] );
+    return $self->[$LOWER_INDEX] = $_[0];
 
-    return $self->[$LOWER_INDEX] = $new_lower * 1;
 }
 
 =head2 upper
@@ -234,34 +193,36 @@ Get/set the upper bound.
 
 sub upper {
     my $self = shift;
-    
+
+    # upper = lower + length
     return $self->lower() + $self->length() unless (@_);
-    return $self->length( $_[0] - $self->lower );
+
+    # new_upper = lower + new_length
+    # new_length = new_upper - lower
+    $self->_length( $_[0] - $self->lower );
+    return $_[0];
 }
 
 =head2 length
 
-Get the length.
+Get the length
 
     $length = $bounds->length;
 
 =cut
 
-sub length {
-    return shift->[$LENGTH_INDEX];
-}
+sub length { return $_[0][$LENGTH_INDEX] }
 
-# Set/validate the length. The lower bound is the anchor (upper bound changes).
+# Set the length. The lower bound is the anchor (upper bound changes).
+sub _length {
+    my $self = shift;
 
-sub _set_length {
-    my ($self, $length) = @_;
-
+    # Validate the length
     croak 'Length must be a non-negative integer'
-      unless ( $length =~ /$POS_INT_REGEX/ );
+      unless ( $_[0] =~ /$POS_INT_REGEX/ );
 
-    return $self->[$LENGTH_INDEX] = $length;
+    return $self->[$LENGTH_INDEX] = $_[0] * 1;
 }
-
 
 =head2 strand
 
@@ -277,151 +238,13 @@ sub strand {
 
     return $self->[$STRAND_INDEX] unless (@_);
 
-    my $strand = shift;
+    # Delete strand if undef passed
+    return delete $self->[$STRAND_INDEX] unless ( defined $_[0] );
 
-    return delete $self->[$STRAND_INDEX] unless ( defined $strand );
-
+    # Validate strand
     croak 'Value passed to strand must be undef, 0, 1, or -1'
-      unless ( $strand =~ /$STRAND_REGEX/ );
-
-    return $self->[$STRAND_INDEX] = $strand * 1;
-}
-
-=head2 phase
-
-    $phase = $bounds->phase();
-
-Get the phase (length % 3).
-
-=cut
-
-sub phase {
-    return shift->length % 3;
-}
-
-=head1 PUBLIC METHODS
-
-=cut
-
-=head2 extend
-
-
-    $self = $self->extend( $offset );        # Extend both ends by $offset
-    $self = $self->extend( $lower, $upper ); # Extend ends by different amounts
-
-Extend/contract the bounds by the supplied offset(s). To contract, supply a
-negative offset.
-
-=cut
-
-sub extend {
-    my $self = shift;
-    my ( $lower, $upper ) = $self->_validate_extend(@_);
-
-    $self->lower( $self->lower - $lower );
-    $self->upper( $self->upper + $upper );
-
-    return $self;
-}
-
-# Validate and return offsets. Set upper to lower if lower isn't defined
-sub _validate_extend {
-    shift;
-    my ( $lower, $upper ) = validate_pos(
-        @_,
-        {
-            type  => Params::Validate::SCALAR,
-            regex => $INT_REGEX,
-        },
-        {
-            type     => Params::Validate::SCALAR,
-            regex    => $INT_REGEX,
-            optional => 1
-        }
-    );
-
-    $upper = $lower unless ( defined $upper );
-
-    return ( $lower, $upper );
-}
-
-sub _bool {
-    return 1;
-}
-
-=head1 COMPARISON METHODS
-
-=head2 contains
-
-    if ( $bounds->contains($point) ) { ... }
-
-Return true if bounds contain point.
-
-=cut
-
-sub contains {
-    my $self = shift;
-    my ($location) = validate_pos( @_, { regex => qr/^\d+$/ } );
-    return ( ( $self->lower <= $location ) && ( $self->upper >= $location ) );
-}
-
-=head2 outside
-
-    if ( $a->outside($b) ) { ... }
-
-Returns true if the first bound is outside the second.
-
-=cut
-
-sub outside {
-    my ( $a, $b ) = validate_pos( @_, ( { can => \@LU } ) x 2 );
-    return ( ( $a->lower <= $b->lower ) && ( $a->upper >= $b->upper ) );
-}
-
-=head2 inside
-
-    if ( $a->inside($b) ) { ... }
-
-Returns true if the first bound is inside the second.
-
-=cut
-
-sub inside { outside( reverse(@_) ) }
-
-=head2 equal
-
-    if ( $a->equal($b) ) { ... }
-    if ( equal($a, $b) ) { ... }
-    if ( $a == $b ) { ... }
-
-Returns true if the bounds have same endpoints and orientation.
-
-=cut
-
-sub equal {
-
-    # Make sure that both objects can run the comparison functions
-    my ( $a, $b ) = validate_pos( @_, ( { can => \@LUS } ) x 2, 0 );
-
-    # Return false if a comparison failed
-    foreach (@LUS) { return 0 if ( $a->$_ != $b->$_ ) }
-
-    # Return true if all comparisons succeeded
-    return 1;
-}
-
-=head2 overlap
-
-    if ( $a->overlap($b) ) { ... }
-    if ( overlap($a, $b) ) { ... }
-
-Returns true if the two bounds overlap, false otherwise;
-
-=cut
-
-sub overlap {
-    my ( $a, $b ) = validate_pos( @_, ( { can => \@LU } ) x 2 );
-    return ( ( $a->lower < $b->upper ) && ( $a->upper > $b->lower ) );
+      unless ( $_[0] =~ /$STRAND_REGEX/ );
+    return $self->[$STRAND_INDEX] = $_[0] * 1;
 }
 
 =head1 COMBINATION METHODS
@@ -435,23 +258,29 @@ Returns a new set of bounds given two bounds
     my $bounds = $a->intersection($b);
     my $bounds = intersection( $a, $b ); 
 
-Returns the intersection of two bounds. If they don't overlap, return nothing.
+Returns the intersection of two bounds. If they don't overlap, return undef.
 
 =cut
 
 sub intersection {
-    my ( $a, $b ) = validate_pos( @_, ( { can => \@LUS } ) x 2 );
+    my $self = shift;
 
-    return unless ( overlap( $a, $b ) );
+    my ($bounds) = validate_pos( @_, { can => [qw( lower upper strand )] } );
 
-    my $lower = max( map { $_->lower } $a, $b );
-    my $upper = min( map { $_->upper } $a, $b );
+    return undef unless ( $self->overlap($bounds) );
+
+    # Get endpoints of intersection
+    my $lower = max( map { $_->lower } $self, $bounds );
+    my $upper = min( map { $_->upper } $self, $bounds );
     my $length = $upper - $lower;
 
-    my @strands = map { $_->strand } $a, $b;
-    return __PACKAGE__->new( $lower, $length, $strands[0] )
-      if ( $strands[0] == $strands[1] );
-    return __PACKAGE__->new( $lower, $length );
+    # Get strands for comparison
+    my ( $s1, $s2 ) = map { $_->strand } $self, $bounds;
+
+    # Create a new object of the same class as self
+    my $class = ref($self);
+    return $class->new( $lower, $length, $s1 ) if ( $s1 == $s2 );
+    return $class->new( $lower, $length );
 }
 
 =head1 AUTHOR

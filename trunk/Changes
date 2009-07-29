@@ -1,5 +1,11 @@
 Revision history for JCVI-Bounds
 
+0.4.0   Jul 29 2009
+  - Split apart the interface to make it more readable
+  - Removed comparison code from JCVI::Bounds and put it into interface
+  - Allowed setting of lower/upper bound in JCVI::Bounds::Set::Interface
+  - Removed circular dependency between JCVI::Bounds::Set/::Interface
+
 0.3.2   Apr 27 2009
   - Intersection returns nothing, not undef if bounds don't overlap
 
