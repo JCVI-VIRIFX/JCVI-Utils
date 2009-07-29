@@ -1,5 +1,5 @@
 # File: Basic.pm
-# Author: Kevin
+# Author: kgalinsk
 # Created: Jul 13, 2009
 #
 # $Author$

@@ -1,5 +1,5 @@
 # File: String.pm
-# Author: Kevin
+# Author: kgalinsk
 # Created: Jul 13, 2009
 #
 # $Author$

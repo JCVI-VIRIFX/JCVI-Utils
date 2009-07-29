@@ -1,7 +1,15 @@
+# File: Set.pm
+# Author: kgalinsk
+# Created: Apr 15, 2009
+#
 # $Author$
 # $Date$
 # $Revision$
 # $HeadURL$
+#
+# Copyright 2009, J. Craig Venter Institute
+#
+# JCVI::Bounds::Set - A set of bounds
 
 package JCVI::Bounds::Set;
 
