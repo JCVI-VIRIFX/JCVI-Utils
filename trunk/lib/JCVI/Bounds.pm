@@ -22,7 +22,7 @@ use Carp;
 use List::Util qw( min max );
 use Params::Validate;
 
-use version; our $VERSION = qv('0.4.0');
+use version; our $VERSION = qv('0.4.1');
 
 =head1 NAME
 
@@ -60,14 +60,18 @@ Store boundary information. Convert from interbase to end5/end3. Compute useful
 things like length and phase. Return sequence. Bounds are stored as an
 arrayref:
 
-    [ $lower, $length ]
     [ $lower, $length, $strand ]
 
 Entitites are stored in this format to make things easy to validate.
 
     $lower  >= 0
     $length >= 0
-    $strand == -1, 0, 1, undef
+    $strand == -1, 0, 1, undef  # See strand method for more info
+
+Do not access array elements directly!
+
+    # $bounds->[0];     # BAD! >:-(
+    $bounds->lower();   # GOOD! :-)
 
 =cut
 
@@ -90,6 +94,8 @@ our $STRAND_REGEX  = qr/^[+-]?[01]$/;
     my $bounds = JCVI::Bounds->new( $lower, $length );
     my $bounds = JCVI::Bounds->new( $lower, $length, $strand );
 
+Basic constructor. Pass lower, length and strand.
+
 =cut
 
 sub new {
@@ -98,7 +104,7 @@ sub new {
         validate_pos(
             @_,
             ( { default => 0, regex => $POS_INT_REGEX } ) x 2,
-            { optional => 1, regex => $STRAND_REGEX }
+            { default => undef, regex => $STRAND_REGEX }
         )
     ];
     bless $self, $class;
@@ -151,7 +157,10 @@ Specify upper and length. Useful when using a regular expression to search for
 sequencing gaps:
 
     while ($seq =~ m/(N{20,})/g) {
-        push @gaps, JCVI::Bounds->ul(pos($seq), length($1));
+        push @gaps, JCVI::Bounds->ul(
+            pos($seq),  # pos corresponds to upper bound of regular expression
+            length($1)  # $1 is the stretch of Ns found
+        );
     }
 
 =cut
@@ -169,10 +178,10 @@ sub ul {
 
 =head2 lower
 
-Get/set the lower bound.
-
     $lower = $bounds->lower;
     $bounds->lower($lower); 
+
+Get/set the lower bound.
 
 =cut
 
@@ -213,9 +222,9 @@ sub upper {
 
 =head2 length
 
-Get the length
-
     $length = $bounds->length;
+
+Get the length
 
 =cut
 
@@ -234,10 +243,16 @@ sub _length {
 
 =head2 strand
 
-Get/set the strand. Strand may be undef, 0, 1, or -1.
-
     $strand = $bounds->strand;
     $bounds->strand($strand);
+
+Get/set the strand. Strand may be undef, 0, 1, or -1. Here are the meanings of
+the four values:
+
+    1   - "+" strand
+    -1  - "-" strand
+    0   - strandless
+    undef - unknown
 
 =cut
 
@@ -247,7 +262,7 @@ sub strand {
     return $self->[$STRAND_INDEX] unless (@_);
 
     # Delete strand if undef passed
-    return delete $self->[$STRAND_INDEX] unless ( defined $_[0] );
+    return undef($self->[$STRAND_INDEX]) unless ( defined $_[0] );
 
     # Validate strand
     croak 'Value passed to strand must be undef, 0, 1, or -1'
