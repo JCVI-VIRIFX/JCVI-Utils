@@ -9,7 +9,7 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Bounds::Interface::String - string methods for bounds objects
+# JCVI::Bounds::Interface::String - methods for printing out bounds objects
 
 package JCVI::Bounds::Interface::String;
 
@@ -19,11 +19,11 @@ use warnings;
 use Params::Validate qw( validate_with );
 use Log::Log4perl qw(:easy);
 
-use overload '""'  => \&_string;
+use overload '""' => \&_string;
 
 =head1 NAME
 
-JCVI::Bounds::Interface::String - string methods for bounds objects
+JCVI::Bounds::Interface::String - methods for printing out bounds objects
 
 =head1 SYNOPSIS
 
@@ -34,15 +34,17 @@ JCVI::Bounds::Interface::String - string methods for bounds objects
 
 =head1 DESCRIPTION
 
-String methods for bounds objects
+
 
 =cut
 
+=head1 PUBLIC METHODS
+
 =head2 string
 
-    print $self;
-    print $self->string;
-    print $self->string( \%params )
+    print $bounds;
+    print $bounds->string;
+    print $bounds->string( \%params )
 
 Returns a string for the bounds or set. Valid parameters are:
 
@@ -57,6 +59,9 @@ my @STRAND_MAP = qw( . + - );
 # Default space to give printed integers
 my $INT_WIDTH = 6;
 
+# Default string method
+my $DEFAULT_METHOD = 'lus';
+
 # Methods for the string
 my %METHOD_MAP = (
     lus => \&string_lus,
@@ -66,11 +71,11 @@ my %METHOD_MAP = (
 
 sub string {
     my $self = shift;
-    my %p   = validate_with(
+    my %p    = validate_with(
         params => \@_,
         spec   => {
             method => {
-                default   => 'lus',
+                default   => $DEFAULT_METHOD,
                 callbacks => {
                     'valid method' => sub { exists $METHOD_MAP{ $_[0] } }
                 }
@@ -85,6 +90,56 @@ sub string {
 # Exists so that overloading doesn't freak out string's parameter validation
 sub _string {
     string(shift);
+}
+
+=head2 default_string_method
+
+    my $method = JCVI::Bounds::Interface::String->default_string_method();
+    JCVI::Bounds::Interface::String->default_string_method( $method );
+    
+    my $method = $bounds->default_string_method();
+    $bounds->default_string_method( $method );
+
+Set/get the global default string method.
+
+=cut
+
+sub default_string_method {
+    my $class = shift;
+
+    return $DEFAULT_METHOD unless (@_);
+
+    my ($method) = validate_pos(
+        @_,
+        {
+            callbacks => {
+                'valid method' => sub { exists $METHOD_MAP{ $_[0] } }
+            }
+        }
+    );
+
+    return $DEFAULT_METHOD = $method;
+}
+
+=head2 default_string_integer_width
+
+    my $width = JCVI::Bounds::Interface::String->default_string_integer_width();
+    JCVI::Bounds::Interface::String->default_string_integer_width( $width );
+    
+    my $width = $bounds->default_string_integer_width();
+    $bounds->default_string_integer_width( $width );
+
+Set/get the global default integer width.
+
+=cut
+
+sub default_string_integer_width {
+    my $class = shift;
+
+    return $INT_WIDTH unless (@_);
+
+    my ($width) = validate_pos( @_, { regex => qr/^\d+$/ } );
+    return $INT_WIDTH = $width;
 }
 
 =head2 string_lus
@@ -103,9 +158,9 @@ look like:
 
 sub string_lus {
     my $self = shift;
-    my %p   = validate_with(
-        params      => \@_,
-        spec        => { width => { default => $INT_WIDTH } },
+    my %p    = validate_with(
+        params => \@_,
+        spec   => { width => { default => $INT_WIDTH, regex => qr/^\d+$/ } },
         allow_extra => 1
     );
 
@@ -142,9 +197,9 @@ like:
 
 sub string_53 {
     my $self = shift;
-    my %p   = validate_with(
-        params      => \@_,
-        spec        => { width => { default => $INT_WIDTH } },
+    my %p    = validate_with(
+        params => \@_,
+        spec   => { width => { default => $INT_WIDTH, regex => qr/^\d+$/ } },
         allow_extra => 1
     );
 
