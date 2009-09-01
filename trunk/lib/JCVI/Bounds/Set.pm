@@ -31,7 +31,7 @@ use JCVI::Bounds;
 
 =head1 SYNOPSIS
 
-Create an array of bounds which you can call some of the same methods.
+Create an array of bounds which follows the bounds interface.
 
 =cut
 
@@ -72,9 +72,7 @@ Sort bounds in the set
 
 sub sort {
     my $self  = shift;
-    my $class = ref $self;
     @$self = sort { $a <=> $b } @$self;
-    bless $self, $class;
 }
 
 =head2 push
@@ -82,7 +80,7 @@ sub sort {
     $set->push( $bound );
     $set->push( @bounds );
 
-Push exons onto group
+Push bounds onto set. Validate each bound.
 
 =cut
 
