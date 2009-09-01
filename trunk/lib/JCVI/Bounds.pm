@@ -30,7 +30,7 @@ JCVI::Bounds - class for boundaries on genetic sequence data
 
 =head1 VERSION
 
-Version 0.4.0
+Version 0.4.1
 
 =head1 SYNOPSIS
 

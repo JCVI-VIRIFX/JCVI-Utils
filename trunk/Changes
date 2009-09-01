@@ -1,5 +1,11 @@
 Revision history for JCVI-Bounds
 
+0.4.1   Sep  1 2009
+  - Documentation fixes
+  - Bounds are always set as 3-member array
+  - Simplified sort method in Set
+  - The defaults for string methods can be changed
+
 0.4.0   Jul 29 2009
   - Split apart the interface to make it more readable
   - Removed comparison code from JCVI::Bounds and put it into interface
