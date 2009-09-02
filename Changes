@@ -1,5 +1,11 @@
-Revision history for DBIx::SQSHRC
+Revision history for DBIx::JCVI
+
+0.1.0   2009-09-02
+  - Renamed DBIx::JCVI
+  - Removed connection routines
+  - Added database handle caching
+  - Added reading from password files
+  - Added password prompt method
 
 0.01    2009-06-24
   - First version of DBIx::SQSHRC
-

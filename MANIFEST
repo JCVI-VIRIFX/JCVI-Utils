@@ -1,8 +1,9 @@
 Build.PL
 Changes
-MANIFEST
+lib/DBIx/JCVI.pm
+MANIFEST			This list of files
 README
-lib/DBIx/SQSHRC.pm
 t/00-load.t
+t/boilerplate.t
 t/pod-coverage.t
 t/pod.t
