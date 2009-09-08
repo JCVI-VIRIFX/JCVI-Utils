@@ -262,13 +262,13 @@ relevant only in a set context
 
 =cut
 
-=head2 spliced
+=head2 spliced_sequence
 
 Spliced sequence
 
 =cut
 
-sub spliced {
+sub spliced_sequence {
     my $self   = shift;
     my $bounds = $self->_bounds();
 
@@ -279,13 +279,13 @@ sub spliced {
     return \$sequence;
 }
 
-=head2 splength
+=head2 spliced_length
 
 Spliced length
 
 =cut
 
-sub splength {
+sub spliced_length {
     my $self   = shift;
     my $bounds = $self->_bounds();
 

@@ -22,7 +22,7 @@ use Carp;
 use List::Util qw( min max );
 use Params::Validate;
 
-use version; our $VERSION = qv('0.4.1');
+use version; our $VERSION = qv('0.4.2');
 
 =head1 NAME
 
@@ -30,7 +30,7 @@ JCVI::Bounds - class for boundaries on genetic sequence data
 
 =head1 VERSION
 
-Version 0.4.1
+Version 0.4.2
 
 =head1 SYNOPSIS
 

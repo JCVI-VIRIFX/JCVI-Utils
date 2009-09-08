@@ -1,5 +1,8 @@
 Revision history for JCVI-Bounds
 
+0.4.2   Sep  8 2009
+  - Renamed spliced/splength methods in Set::Interface for clarity
+
 0.4.1   Sep  1 2009
   - Documentation fixes
   - Bounds are always set as 3-member array
