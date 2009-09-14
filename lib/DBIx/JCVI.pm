@@ -26,28 +26,28 @@ DBIx::JCVI - open and cache a database connection
 
 =head1 VERSION
 
-Version 0.1.0
+Version 0.1.1
 
 =cut
 
-use version; our $VERSION = qv('0.1.0');
+use version; our $VERSION = qv('0.1.1');
 
 =head1 SYNOPSIS
 
     use DBIx::JCVI;
 
     # Database handle caching functions
-    DBIx::JCVI->cache_dbh( $dbh );              # cache a new database handle
-    my $dbh = DBIx::JCVI->get_cached_dbh();     # get the cached database handle
+    DBIx::JCVI->cache_dbh( $dbh );                  # cache a new database handle
+    my $dbh = DBIx::JCVI->get_cached_dbh();         # get the cached database handle
 
     # Export the cached database handle function
-    use DBIx::JCVI ':dbh';                      # function name is dbh
+    use DBIx::JCVI ':export';                       # function name is dbh
     my $dbh = dbh();
     $dbh->prepare(...);
     dbh()->prepare(...);
 
-    use DBIx::JCVI ( ':dbh' => 'cached_dbh' );  # method name is 'cached_dbh'
-    use DBIx::JCVI qw( :dbh cached_dbh );       # same as above
+    use DBIx::JCVI ( ':export' => 'cached_dbh' );   # method name is 'cached_dbh'
+    use DBIx::JCVI qw( :export cached_dbh );        # same as above
     my $dbh = cached_dbh();
 
     # Credentials (username/password) functions
@@ -76,23 +76,27 @@ sub import {
     for ( my $i = 0 ; $i < @_ ; $i++ ) {
         my $option = $_[$i];
 
-        if ( $option eq ':dbh' ) {
+        if ( $option eq ':export' ) {
             my $exported_dbh_method_name = 'dbh';
 
             # Check to see if an alternate function name was provided
             if ( ( $#_ > $i ) && ( $_[ $i + 1 ] !~ m/^:/ ) ) {
                 $exported_dbh_method_name = $_[ ++$i ];
 
-                # TODO validate passed function name
+                die 'A reference was passed for the function name'
+                  if ( ref($exported_dbh_method_name) );
+                die 'An empty function name was passed'
+                  unless ($exported_dbh_method_name);
             }
 
             no strict 'refs';
             *{"${caller}::$exported_dbh_method_name"} =
               \&{"${class}::get_cached_dbh"};
+
+            next;
         }
-        else {
-            die qq{Unrecognized option supplied to import: "$option"};
-        }
+
+        die qq{Unrecognized option supplied to import: "$option"};
     }
 }
 
