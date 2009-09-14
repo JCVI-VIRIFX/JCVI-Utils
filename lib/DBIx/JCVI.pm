@@ -77,20 +77,20 @@ sub import {
         my $option = $_[$i];
 
         if ( $option eq ':export' ) {
-            my $exported_dbh_method_name = 'dbh';
+            my $exported_method_name = 'dbh';
 
             # Check to see if an alternate function name was provided
             if ( ( $#_ > $i ) && ( $_[ $i + 1 ] !~ m/^:/ ) ) {
-                $exported_dbh_method_name = $_[ ++$i ];
+                $exported_method_name = $_[ ++$i ];
 
                 die 'A reference was passed for the function name'
-                  if ( ref($exported_dbh_method_name) );
+                  if ( ref($exported_method_name) );
                 die 'An empty function name was passed'
-                  unless ($exported_dbh_method_name);
+                  unless ($exported_method_name);
             }
 
             no strict 'refs';
-            *{"${caller}::$exported_dbh_method_name"} =
+            *{"${caller}::$exported_method_name"} =
               \&{"${class}::get_cached_dbh"};
 
             next;
@@ -123,8 +123,8 @@ sub cache_dbh {
     my $dbh = DBIx::JCVI->get_cached_dbh();
 
 Retrieve the cached database handle. This method is exported as 'dbh' if the
-':dbh' tag is supplied on import, and it can also be exported with another name
-of your choosing.
+':export' tag is supplied on import, and it can also be exported with another
+name of your choosing.
 
 =cut
 
