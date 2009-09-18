@@ -54,7 +54,7 @@ sub new {
     return $self;
 }
 
-sub _bounds { return $_[0] }
+sub _exons { return $_[0] }
 
 =head1 SET MANIPULATION METHODS
 
@@ -71,7 +71,7 @@ Sort bounds in the set
 =cut
 
 sub sort {
-    my $self  = shift;
+    my $self = shift;
     @$self = sort { $a <=> $b } @$self;
 }
 
