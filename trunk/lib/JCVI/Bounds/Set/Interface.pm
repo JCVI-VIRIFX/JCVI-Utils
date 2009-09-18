@@ -146,7 +146,7 @@ sub strand {
 
 sub _strand {
     my $self = shift;
-    my ($bounds) = @_;
+    my $bounds = pop;
 
     return undef unless ( defined($bounds) && (@$bounds) );
 
@@ -213,7 +213,7 @@ sub lower {
 
 sub _lower {
     my $self = shift;
-    my ($bounds) = @_;
+    my $bounds = pop;
 
     # Get the lowest bound and return it unless we were given an new one
     my $lowest = min map { $_->lower } @$bounds;
@@ -241,7 +241,7 @@ sub upper {
 
 sub _upper {
     my $self = shift;
-    my ($bounds) = @_;
+    my $bounds = pop;
 
     # Get the highest bound and return it unless we were given an new one
     my $highest = max map { $_->upper } @$bounds;
