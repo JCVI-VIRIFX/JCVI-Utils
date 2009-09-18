@@ -34,20 +34,20 @@ use JCVI::Bounds;
 
 =cut
 
-=head2 _bounds
+=head2 _exons
 
-    my $bounds = $set->_bounds();
+    my $bounds = $set->_exons();
 
-This is the only method you need to define in your module. It returns the array
+This is the only method you need to define in your module. It returns an array
 of bounds. It won't be modified, so it is ok to return an internal data
 structure for speed.
 
 Many methods below will have two definitions; a public one and a private one
 prefixed with and underscore ('_'). The public one simply calls the private one
-and passes _bounds to it. The reason for this is that _bounds may be expensive
-to run for some implementations of the set, and there would be a speed boost
-from computing the set of bounds once, but passing it around to several
-methods.
+and passes the output of _exons to it. The reason for this is that _exons may
+be expensive to run for some implementations of this interface, and there would
+be a speed boost from computing the set of exons once, but passing it around
+to several methods for computation.
 
 =cut
 
@@ -55,21 +55,21 @@ methods.
 
 =cut
 
-=head2 bounds
+=head2 exons
 
-    my $bounds = $set->bounds();
+    my $bounds = $set->exons();
 
 Returns an arrayref of the bounds in the set. This arrayref is different from
-the one returned by _bounds because the order of bounds may be changed, but it
+the one returned by _exons because the order of bounds may be changed, but it
 won't affect the actual data structure of the set.
 
 =cut
 
-sub bounds { [ @{ shift->_bounds() } ] }
+sub exons { [ @{ shift->_exons() } ] }
 
 =head1 BOUNDS MAKERS
 
-These functions create new bounds objects
+These functions create new JCVI::Bounds objects
 
 =cut
 
@@ -77,13 +77,13 @@ These functions create new bounds objects
 
     my $bounds = $set->simplify();
 
-Return a bounds object with the same endpoints and strand as the set.
+Return a JCVI::Bounds object with the same endpoints and strand as the set.
 
 =cut
 
 sub simplify {
     my $self   = shift;
-    my $bounds = $self->_bounds;
+    my $bounds = $self->_exons;
 
     return undef unless (@$bounds);
 
@@ -100,13 +100,13 @@ sub simplify {
 
     my $introns = $set->introns();
 
-Return an arrayref set of bounds which are the introns
+Return an arrayref set of bounds which are the introns.
 
 =cut
 
 sub introns {
     my $self   = shift;
-    my $bounds = $self->_bounds();
+    my $bounds = $self->_exons();
 
     return undef unless (@$bounds);
 
@@ -127,7 +127,7 @@ sub introns {
 =head1 BOUNDS-LIKE METHODS
 
 These are the methods that allow many of the same functions as bounds uses to
-run
+run.
 
 =cut
 
@@ -141,12 +141,12 @@ Returns the strand.
 
 sub strand {
     my $self = shift;
-    $self->_strand( @_, $self->_bounds );
+    $self->_strand( @_, $self->_exons );
 }
 
 sub _strand {
     my $self = shift;
-    my $bounds = pop;
+    my ($bounds) = @_;
 
     return undef unless ( defined($bounds) && (@$bounds) );
 
@@ -155,7 +155,6 @@ sub _strand {
         foreach my $bound (@$bounds) {
             $bound->strand(@_);
         }
-        
         return @_;
     }
 
@@ -192,7 +191,7 @@ sub _strand {
     # Set the strand of bounds whose strands are 0/undef where others are known
     if ($strand) {
         foreach my $bound (@normalize) {
-            $bound->strand($strand)
+            $bound->strand($strand);
         }
     }
 
@@ -209,12 +208,12 @@ Return/set lower bound
 
 sub lower {
     my $self = shift;
-    $self->_lower( @_, $self->_bounds );
+    $self->_lower( @_, $self->_exons );
 }
 
 sub _lower {
-    my $self   = shift;
-    my $bounds = pop;
+    my $self = shift;
+    my ($bounds) = @_;
 
     # Get the lowest bound and return it unless we were given an new one
     my $lowest = min map { $_->lower } @$bounds;
@@ -237,12 +236,12 @@ Return upper bound
 
 sub upper {
     my $self = shift;
-    $self->_upper( @_, $self->_bounds );
+    $self->_upper( @_, $self->_exons );
 }
 
 sub _upper {
-    my $self   = shift;
-    my $bounds = pop;
+    my $self = shift;
+    my ($bounds) = @_;
 
     # Get the highest bound and return it unless we were given an new one
     my $highest = max map { $_->upper } @$bounds;
@@ -270,7 +269,7 @@ Spliced sequence
 
 sub spliced_sequence {
     my $self   = shift;
-    my $bounds = $self->_bounds();
+    my $bounds = $self->_exons();
 
     return undef unless (@$bounds);
 
@@ -287,7 +286,7 @@ Spliced length
 
 sub spliced_length {
     my $self   = shift;
-    my $bounds = $self->_bounds();
+    my $bounds = $self->_exons();
 
     return undef unless (@$bounds);
 
