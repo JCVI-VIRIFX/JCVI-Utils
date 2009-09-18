@@ -1,5 +1,8 @@
 Revision history for JCVI-Bounds
 
+0.4.3   Sep 18 2009
+  - Renamed bounds in Set::Interface to exons
+
 0.4.2   Sep  8 2009
   - Renamed spliced/splength methods in Set::Interface for clarity
 
