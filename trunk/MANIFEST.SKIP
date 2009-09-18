@@ -9,6 +9,10 @@ CVS
 \.svn
 
 \.bak$
+\.old$
 
 ^\.includepath$
 ^\.project$
+
+^Makefile$
+^pm_to_blib$

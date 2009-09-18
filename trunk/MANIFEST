@@ -7,11 +7,9 @@ lib/JCVI/Bounds/Interface/Comparisons.pm
 lib/JCVI/Bounds/Interface/String.pm
 lib/JCVI/Bounds/Set.pm
 lib/JCVI/Bounds/Set/Interface.pm
-Makefile
 Makefile.PL
 MANIFEST
 META.yml			# Will be created by "make dist"
-pm_to_blib
 README
 t/00-load.t
 t/01-bounds.t
