@@ -1,6 +1,6 @@
 #!perl
 
-use Test::More tests => 22;
+use Test::More tests => 28;
 
 use JCVI::Bounds;
 
@@ -53,3 +53,13 @@ ok( JCVI::Bounds->e53( 1, 10 ), 'e53 works' );
 my $e53 = JCVI::Bounds->e53( 150, 51 );
 is_deeply( $e53, $bounds, 'e53 == new' );
 
+# Test bounds modification
+$bounds->lower(60);
+is( $bounds->lower,  60,  'lower correct' );
+is( $bounds->length, 90, 'length correct' );
+is( $bounds->upper,  150, 'upper correct' );
+
+$bounds->upper(80);
+is( $bounds->lower,  60, 'lower correct' );
+is( $bounds->length, 20, 'length correct' );
+is( $bounds->upper,  80, 'upper correct' );
