@@ -1,5 +1,8 @@
 Revision history for JCVI-Bounds
 
+0.4.5   Sep 21 2009
+  - Fixed serious bug where updating lower bound would not adjust length
+
 0.4.4   Sep 21 2009
   - Added helper methods to simplify and spliced methods in Set::Interface
 
