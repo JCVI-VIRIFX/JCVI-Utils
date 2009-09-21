@@ -82,8 +82,13 @@ Return a JCVI::Bounds object with the same endpoints and strand as the set.
 =cut
 
 sub simplify {
+    my $self = shift;
+    $self->_simplify( @_, $self->_exons );
+}
+
+sub _simplify {
     my $self   = shift;
-    my $bounds = $self->_exons;
+    my $bounds = pop;
 
     return undef unless (@$bounds);
 
