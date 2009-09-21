@@ -269,7 +269,7 @@ Spliced sequence
 
 sub spliced_sequence {
     my $self = shift;
-    $self->_spliced_sequence( $self->_exons );
+    $self->_spliced_sequence( @_, $self->_exons );
 }
 
 sub _spliced_sequence {
@@ -291,7 +291,7 @@ Spliced length
 
 sub spliced_length {
     my $self = shift;
-    $self->_spliced_length( $self->_exons );
+    $self->_spliced_length( @_, $self->_exons );
 }
 
 sub _spliced_length {
