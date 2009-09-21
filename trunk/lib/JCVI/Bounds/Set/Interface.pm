@@ -268,8 +268,13 @@ Spliced sequence
 =cut
 
 sub spliced_sequence {
+    my $self = shift;
+    $self->_spliced_sequence( $self->_exons );
+}
+
+sub _spliced_sequence {
     my $self   = shift;
-    my $bounds = $self->_exons();
+    my $bounds = pop;
 
     return undef unless (@$bounds);
 
@@ -285,8 +290,13 @@ Spliced length
 =cut
 
 sub spliced_length {
+    my $self = shift;
+    $self->_spliced_length( $self->_exons );
+}
+
+sub _spliced_length {
     my $self   = shift;
-    my $bounds = $self->_exons();
+    my $bounds = pop;
 
     return undef unless (@$bounds);
 
