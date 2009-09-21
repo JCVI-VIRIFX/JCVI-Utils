@@ -73,6 +73,7 @@ Sort bounds in the set
 sub sort {
     my $self = shift;
     @$self = sort { $a <=> $b } @$self;
+    return [ @$self ];
 }
 
 =head2 push
