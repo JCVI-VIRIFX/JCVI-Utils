@@ -194,7 +194,7 @@ sub lower {
       unless ( $_[0] =~ /$POS_INT_REGEX/ );
 
     # Adjust the length and lower bound
-    $self->length( $self->upper() - $_[0] );
+    $self->_length( $self->upper() - $_[0] );
     return $self->[$LOWER_INDEX] = $_[0];
 
 }
