@@ -9,9 +9,9 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Bounds::Interface::Basic - basic bounds functionality
+# JCVI::Range::Interface::Basic - basic range functionality
 
-package JCVI::Bounds::Interface::Basic;
+package JCVI::Range::Interface::Basic;
 
 use strict;
 use warnings;
@@ -22,30 +22,30 @@ use Log::Log4perl qw(:easy);
 
 =head1 NAME
 
-JCVI::Bounds::Interface::Basic - basic bounds functionality
+JCVI::Range::Interface::Basic - basic range functionality
 
 =head1 SYNOPSIS
 
     # You define these
-    $bounds->lower;
-    $bounds->upper;
-    $bounds->strand;
+    $range->lower;
+    $range->upper;
+    $range->strand;
 
     # The following are provided based on the above
-    $bounds->end5;
-    $bounds->end3;
+    $range->end5;
+    $range->end3;
     
-    $bounds->length;
-    $bounds->phase;
+    $range->length;
+    $range->phase;
     
-    $bounds->sequence;
+    $range->sequence;
 
-    $bounds->extend( $offset );
-    $bounds->extend( $lower_offset, $upper_offset );
+    $range->extend( $offset );
+    $range->extend( $lower_offset, $upper_offset );
 
 =head1 DESCRIPTION
 
-This contains the most basic interface methods for bounds.
+This contains the most basic interface methods for range.
 
 =cut
 
@@ -86,7 +86,7 @@ These are mixins that require the abstract methods to function
 
     my $length = $obj->length();
 
-Return distance between upper and lower bounds.
+Return distance between upper and lower range.
 
 =cut
 
@@ -103,7 +103,7 @@ sub length {
 
 =head2 phase
 
-    $phase = $bounds->phase();
+    $phase = $range->phase();
 
 Get the phase (length % 3).
 
@@ -117,15 +117,15 @@ sub phase {
 
 =head1 5'/3' END CONVERSION
 
-A bounds object should keep track of upper/lower and strand in some form. The
+A range object should keep track of upper/lower and strand in some form. The
 following methods convert between those values and ends.
 
 =cut
 
 =head2 end5
 
-    $end5 = $bounds->end5();
-    $bounds->end5($end5);
+    $end5 = $range->end5();
+    $range->end5($end5);
 
 Get/set 5' end
 
@@ -135,8 +135,8 @@ sub end5 { shift->_end( 1, @_ ) }
 
 =head2 end3
 
-    $end3 = $bounds->end3();
-    $bounds->end3($end3);
+    $end3 = $range->end3();
+    $range->end3($end3);
 
 Get/set 3' end
 
@@ -167,7 +167,7 @@ sub _end {
     }
 
     # Get the bound based upon the test
-    # For lower bounds, we want to offset the bound by 1
+    # For lower range, we want to offset the bound by 1
     my ( $bound, $offset ) = $strand == $test ? ( 'lower', 1 ) : ( 'upper', 0 );
 
     # Return/set the bound
@@ -189,13 +189,13 @@ as:
 sub sequence {
     my $self = shift;
 
-    # Validate that the sequence is a reference and contains the bounds
+    # Validate that the sequence is a reference and contains the range
     my ($seq_ref) = validate_pos(
         @_,
         {
             type      => Params::Validate::SCALARREF,
             callbacks => {
-                'contains bounds' =>
+                'contains range' =>
                   sub { CORE::length( ${ $_[0] } ) >= $self->upper }
             }
         }
@@ -221,9 +221,9 @@ sub sequence {
     $self = $self->extend( $offset );             # Extend both ends by $offset
     $self = $self->extend( $offset, $direction ); # Specify end to extend
 
-Extend/contract the bounds by the supplied offset in the specified direction. 
+Extend/contract the range by the supplied offset in the specified direction. 
 The direction is -1, 0, 1, with -1 meaning to extend the lower bound, 0 to
-extend both bounds (default), and 1 to extend the upper bound. To contract,
+extend both range (default), and 1 to extend the upper bound. To contract,
 supply a negative offset.
 
 =cut

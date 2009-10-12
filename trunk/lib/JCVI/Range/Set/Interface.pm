@@ -9,26 +9,26 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Bounds::Set::Interface - interface for sets of bounds
+# JCVI::Range::Set::Interface - interface for sets of range
 
-package JCVI::Bounds::Set::Interface;
+package JCVI::Range::Set::Interface;
 
 use strict;
 use warnings;
 
 =head1 NAME
 
-JCVI::Bounds::Set::Interface - Interface for sets of bounds
+JCVI::Range::Set::Interface - Interface for sets of range
 
 =cut
 
-use base qw( JCVI::Bounds::Interface );
+use base qw( JCVI::Range::Interface );
 
 use Carp;
 use List::Util qw(min max sum);
 use Params::Validate;
 
-use JCVI::Bounds;
+use JCVI::Range;
 
 =head1 ABSTRACT METHODS
 
@@ -36,10 +36,10 @@ use JCVI::Bounds;
 
 =head2 _exons
 
-    my $bounds = $set->_exons();
+    my $range = $set->_exons();
 
 This is the only method you need to define in your module. It returns an array
-of bounds. It won't be modified, so it is ok to return an internal data
+of range. It won't be modified, so it is ok to return an internal data
 structure for speed.
 
 Many methods below will have two definitions; a public one and a private one
@@ -57,10 +57,10 @@ to several methods for computation.
 
 =head2 exons
 
-    my $bounds = $set->exons();
+    my $range = $set->exons();
 
-Returns an arrayref of the bounds in the set. This arrayref is different from
-the one returned by _exons because the order of bounds may be changed, but it
+Returns an arrayref of the range in the set. This arrayref is different from
+the one returned by _exons because the order of range may be changed, but it
 won't affect the actual data structure of the set.
 
 =cut
@@ -69,15 +69,15 @@ sub exons { [ @{ shift->_exons() } ] }
 
 =head1 BOUNDS MAKERS
 
-These functions create new JCVI::Bounds objects
+These functions create new JCVI::Range objects
 
 =cut
 
 =head2 simplify
 
-    my $bounds = $set->simplify();
+    my $range = $set->simplify();
 
-Return a JCVI::Bounds object with the same endpoints and strand as the set.
+Return a JCVI::Range object with the same endpoints and strand as the set.
 
 =cut
 
@@ -88,41 +88,41 @@ sub simplify {
 
 sub _simplify {
     my $self   = shift;
-    my $bounds = pop;
+    my $range = pop;
 
-    return undef unless (@$bounds);
+    return undef unless (@$range);
 
-    my $lower  = $self->_lower($bounds);
-    my $upper  = $self->_upper($bounds);
-    my $strand = $self->_strand($bounds);
+    my $lower  = $self->_lower($range);
+    my $upper  = $self->_upper($range);
+    my $strand = $self->_strand($range);
 
     my $length = $upper - $lower;
 
-    return JCVI::Bounds->new( $lower, $length, $strand );
+    return JCVI::Range->new( $lower, $length, $strand );
 }
 
 =head2 introns
 
     my $introns = $set->introns();
 
-Return an arrayref set of bounds which are the introns.
+Return an arrayref set of range which are the introns.
 
 =cut
 
 sub introns {
     my $self   = shift;
-    my $bounds = $self->_exons();
+    my $range = $self->_exons();
 
-    return undef unless (@$bounds);
+    return undef unless (@$range);
 
-    @$bounds = sort { $a <=> $b } @$bounds;
+    @$range = sort { $a <=> $b } @$range;
 
     my $introns = [];
 
-    my $a = $bounds->[0];
-    for ( my $i = 1 ; $i < @$bounds ; $i++ ) {
-        $b = $bounds->[$i];
-        push @$introns, JCVI::Bounds->lus( $a->upper, $b->lower );
+    my $a = $range->[0];
+    for ( my $i = 1 ; $i < @$range ; $i++ ) {
+        $b = $range->[$i];
+        push @$introns, JCVI::Range->lus( $a->upper, $b->lower );
         $a = $b;
     }
 
@@ -131,7 +131,7 @@ sub introns {
 
 =head1 BOUNDS-LIKE METHODS
 
-These are the methods that allow many of the same functions as bounds uses to
+These are the methods that allow many of the same functions as range uses to
 run.
 
 =cut
@@ -151,27 +151,27 @@ sub strand {
 
 sub _strand {
     my $self   = shift;
-    my $bounds = pop;
+    my $range = pop;
 
-    return undef unless ( defined($bounds) && (@$bounds) );
+    return undef unless ( defined($range) && (@$range) );
 
-    # Set bounds
+    # Set range
     if (@_) {
-        foreach my $bound (@$bounds) {
+        foreach my $bound (@$range) {
             $bound->strand(@_);
         }
         return @_;
     }
 
-    # Array containing bounds to normalize
+    # Array containing range to normalize
     my @normalize;
 
     # Seed strand
-    my $strand = $bounds->[0]->strand;
-    push @normalize, $bounds->[0] unless ($strand);
+    my $strand = $range->[0]->strand;
+    push @normalize, $range->[0] unless ($strand);
 
-    for ( my $i = 1 ; $i < @$bounds ; $i++ ) {
-        my $current = $bounds->[$i]->strand;
+    for ( my $i = 1 ; $i < @$range ; $i++ ) {
+        my $current = $range->[$i]->strand;
 
         # Where strand = +/-1 (not undef or 0)
         if ($strand) {
@@ -184,7 +184,7 @@ sub _strand {
                 return undef if ( $strand * $current == -1 );
             }
 
-            else { push @normalize, $bounds->[$i] }
+            else { push @normalize, $range->[$i] }
 
             next;
         }
@@ -193,7 +193,7 @@ sub _strand {
         $strand = $current if ( defined $current );
     }
 
-    # Set the strand of bounds whose strands are 0/undef where others are known
+    # Set the strand of range whose strands are 0/undef where others are known
     if ($strand) {
         foreach my $bound (@normalize) {
             $bound->strand($strand);
@@ -218,15 +218,15 @@ sub lower {
 
 sub _lower {
     my $self   = shift;
-    my $bounds = pop;
+    my $range = pop;
 
     # Get the lowest bound and return it unless we were given an new one
-    my $lowest = min map { $_->lower } @$bounds;
+    my $lowest = min map { $_->lower } @$range;
 
     return $lowest unless (@_);
 
-    # Find the bounds objects whose lower bound matches the lowest bound
-    foreach my $bound ( grep { $_->lower == $lowest } @$bounds ) {
+    # Find the range objects whose lower bound matches the lowest bound
+    foreach my $bound ( grep { $_->lower == $lowest } @$range ) {
         $bound->lower(@_);
     }
 }
@@ -246,22 +246,22 @@ sub upper {
 
 sub _upper {
     my $self   = shift;
-    my $bounds = pop;
+    my $range = pop;
 
     # Get the highest bound and return it unless we were given an new one
-    my $highest = max map { $_->upper } @$bounds;
+    my $highest = max map { $_->upper } @$range;
 
     return $highest unless (@_);
 
-    # Find the bounds objects whose upper bound matches the highest bound
-    foreach my $bound ( grep { $_->upper == $highest } @$bounds ) {
+    # Find the range objects whose upper bound matches the highest bound
+    foreach my $bound ( grep { $_->upper == $highest } @$range ) {
         $bound->upper(@_);
     }
 }
 
 =head1 ADAPTED METHODS
 
-These are methods that are similar to some of the bounds-like ones, but are
+These are methods that are similar to some of the range-like ones, but are
 relevant only in a set context
 
 =cut
@@ -279,12 +279,12 @@ sub spliced_sequence {
 
 sub _spliced_sequence {
     my $self   = shift;
-    my $bounds = pop;
+    my $range = pop;
 
-    return undef unless (@$bounds);
+    return undef unless (@$range);
 
     # Join the sequence from every bound
-    my $sequence = join( '', map { ${ $_->sequence(@_) } } @$bounds );
+    my $sequence = join( '', map { ${ $_->sequence(@_) } } @$range );
     return \$sequence;
 }
 
@@ -301,11 +301,11 @@ sub spliced_length {
 
 sub _spliced_length {
     my $self   = shift;
-    my $bounds = pop;
+    my $range = pop;
 
-    return undef unless (@$bounds);
+    return undef unless (@$range);
 
-    return sum map { $_->length } @$bounds;
+    return sum map { $_->length } @$range;
 }
 
 1;

@@ -1,5 +1,5 @@
-JCVI::Bounds defines an object which converts 5'/3' ends to upper and lower
-bounds, with the strand property. It has evolved to allow several comparison
+JCVI::Range defines an object which converts 5'/3' ends to upper and lower
+range, with the strand property. It has evolved to allow several comparison
 methods as well.
 
 INSTALLATION
@@ -16,21 +16,21 @@ SUPPORT AND DOCUMENTATION
 
 After installing, you can find documentation for this module with the perldoc command.
 
-    perldoc JCVI::Bounds
+    perldoc JCVI::Range
 
 You can also look for information at:
 
     Search CPAN
-        http://search.cpan.org/dist/JCVI-Bounds
+        http://search.cpan.org/dist/JCVI-Range
 
     CPAN Request Tracker:
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=JCVI-Bounds
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=JCVI-Range
 
     AnnoCPAN, annotated CPAN documentation:
-        http://annocpan.org/dist/JCVI-Bounds
+        http://annocpan.org/dist/JCVI-Range
 
     CPAN Ratings:
-        http://cpanratings.perl.org/d/JCVI-Bounds
+        http://cpanratings.perl.org/d/JCVI-Range
 
 COPYRIGHT AND LICENCE
 

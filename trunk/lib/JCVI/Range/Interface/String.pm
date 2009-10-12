@@ -9,9 +9,9 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Bounds::Interface::String - methods for printing out bounds objects
+# JCVI::Range::Interface::String - methods for printing out range objects
 
-package JCVI::Bounds::Interface::String;
+package JCVI::Range::Interface::String;
 
 use strict;
 use warnings;
@@ -23,14 +23,14 @@ use overload '""' => \&_string;
 
 =head1 NAME
 
-JCVI::Bounds::Interface::String - methods for printing out bounds objects
+JCVI::Range::Interface::String - methods for printing out range objects
 
 =head1 SYNOPSIS
 
-    print $bounds;
-    print $bounds->string;
-    print $bounds->string_lus;
-    print $bounds->string_53;
+    print $range;
+    print $range->string;
+    print $range->string_lus;
+    print $range->string_53;
 
 =head1 DESCRIPTION
 
@@ -42,11 +42,11 @@ JCVI::Bounds::Interface::String - methods for printing out bounds objects
 
 =head2 string
 
-    print $bounds;
-    print $bounds->string;
-    print $bounds->string( \%params )
+    print $range;
+    print $range->string;
+    print $range->string( \%params )
 
-Returns a string for the bounds or set. Valid parameters are:
+Returns a string for the range or set. Valid parameters are:
 
     method: use one of the string functions below (default is lus)
     width:  padding width for integers
@@ -94,11 +94,11 @@ sub _string {
 
 =head2 default_string_method
 
-    my $method = JCVI::Bounds::Interface::String->default_string_method();
-    JCVI::Bounds::Interface::String->default_string_method( $method );
+    my $method = JCVI::Range::Interface::String->default_string_method();
+    JCVI::Range::Interface::String->default_string_method( $method );
     
-    my $method = $bounds->default_string_method();
-    $bounds->default_string_method( $method );
+    my $method = $range->default_string_method();
+    $range->default_string_method( $method );
 
 Set/get the global default string method.
 
@@ -123,11 +123,11 @@ sub default_string_method {
 
 =head2 default_string_integer_width
 
-    my $width = JCVI::Bounds::Interface::String->default_string_integer_width();
-    JCVI::Bounds::Interface::String->default_string_integer_width( $width );
+    my $width = JCVI::Range::Interface::String->default_string_integer_width();
+    JCVI::Range::Interface::String->default_string_integer_width( $width );
     
-    my $width = $bounds->default_string_integer_width();
-    $bounds->default_string_integer_width( $width );
+    my $width = $range->default_string_integer_width();
+    $range->default_string_integer_width( $width );
 
 Set/get the global default integer width.
 
@@ -211,7 +211,7 @@ sub string_53 {
     return join( ' ', q{<5'}, _int( $p{width}, $end5, $end3 ), q{3'>} );
 }
 
-# Return a string with two bounds padded by a width
+# Return a string with two range padded by a width
 sub _int {
     my $width = shift;
     return sprintf "%-${width}d %${width}d", @_;

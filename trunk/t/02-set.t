@@ -2,19 +2,19 @@
 
 use Test::More 'no_plan';
 
-use JCVI::Bounds::Set;
-use JCVI::Bounds;
+use JCVI::Range::Set;
+use JCVI::Range;
 
-my @a = map { JCVI::Bounds->new( $_ * 20, 10, 1 ) }  ( 0, 1 );
-my @b = map { JCVI::Bounds->new( $_ * 20, 10, -1 ) } ( 1, 0 );
+my @a = map { JCVI::Range->new( $_ * 20, 10, 1 ) }  ( 0, 1 );
+my @b = map { JCVI::Range->new( $_ * 20, 10, -1 ) } ( 1, 0 );
 
 my ( $A, $B );
 
-ok( JCVI::Bounds::Set->new(),        'new' );
-ok( JCVI::Bounds::Set->new( $a[0] ), 'new with 1 + strand exon' );
-ok( $A = JCVI::Bounds::Set->new(@a), 'new with 2 + strand exons' );
-ok( JCVI::Bounds::Set->new( $b[0] ), 'new with 1 - strand exon' );
-ok( $B = JCVI::Bounds::Set->new(@b), 'new with 2 - strand exons' );
+ok( JCVI::Range::Set->new(),        'new' );
+ok( JCVI::Range::Set->new( $a[0] ), 'new with 1 + strand exon' );
+ok( $A = JCVI::Range::Set->new(@a), 'new with 2 + strand exons' );
+ok( JCVI::Range::Set->new( $b[0] ), 'new with 1 - strand exon' );
+ok( $B = JCVI::Range::Set->new(@b), 'new with 2 - strand exons' );
 
 my @battery = (
     [ 'lower',  0,  0 ],

@@ -45,4 +45,4 @@ sub module_boilerplate_ok {
     );
 }
 
-module_boilerplate_ok('lib/JCVI/Bounds.pm');
+module_boilerplate_ok('lib/JCVI/Range.pm');

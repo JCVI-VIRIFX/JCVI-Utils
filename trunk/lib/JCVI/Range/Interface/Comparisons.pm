@@ -9,9 +9,9 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Bounds::Interface::Comparisons - comparison methods for bounds objects
+# JCVI::Range::Interface::Comparisons - comparison methods for range objects
 
-package JCVI::Bounds::Interface::Comparisons;
+package JCVI::Range::Interface::Comparisons;
 
 use strict;
 use warnings;
@@ -25,18 +25,18 @@ use overload
 
 =head1 NAME
 
-JCVI::Bounds::Interface::Comparisons - comparison methods for bounds objects
+JCVI::Range::Interface::Comparisons - comparison methods for range objects
 
 =head1 SYNOPSIS
 
-    $bounds1 <=> $bounds2;
-    $bounds1->spaceship($bounds2);
+    $range1 <=> $range2;
+    $range1->spaceship($range2);
 
-    $bounds->contains( $point );
+    $range->contains( $point );
 
 =head1 DESCRIPTION
 
-These are methods for comparing bounds objects to points or other bounds
+These are methods for comparing range objects to points or other range
 objects.
 
 =cut
@@ -51,11 +51,11 @@ our @LUS = qw(lower upper strand);
 
 =head2 spaceship
 
-    my @sorted = sort { $a->spaceship($b) } @bounds;
-    my @sorted = sort { $a <=> $b } @bounds;
+    my @sorted = sort { $a->spaceship($b) } @range;
+    my @sorted = sort { $a <=> $b } @range;
 
-Spaceship operator for bounds. Returns -1, 0 or 1 depending upon the relative
-position of two bounds. Tries to order based upon lower bound, but if those are
+Spaceship operator for range. Returns -1, 0 or 1 depending upon the relative
+position of two range. Tries to order based upon lower bound, but if those are
 the same, then it tries to order based upon upper bound.
 
 =cut
@@ -69,9 +69,9 @@ sub spaceship {
 
 =head2 contains
 
-    my $bool = $bounds->contains($point);
+    my $bool = $range->contains($point);
 
-Return true if bounds contain point.
+Return true if range contain point.
 
 =cut
 
@@ -91,9 +91,9 @@ Returns true if the first bound is outside the second.
 
 sub outside {
     my $self = shift;
-    my ($bounds) = validate_pos( @_, { can => \@LU } );
-    return ( ( $self->lower <= $bounds->lower )
-          && ( $self->upper >= $bounds->upper ) );
+    my ($range) = validate_pos( @_, { can => \@LU } );
+    return ( ( $self->lower <= $range->lower )
+          && ( $self->upper >= $range->upper ) );
 }
 
 =head2 inside
@@ -106,9 +106,9 @@ Returns true if the first bound is inside the second.
 
 sub inside {
     my $self = shift;
-    my ($bounds) = validate_pos( @_, { can => \@LU } );
-    return ( ( $self->lower >= $bounds->lower )
-          && ( $self->upper <= $bounds->upper ) );
+    my ($range) = validate_pos( @_, { can => \@LU } );
+    return ( ( $self->lower >= $range->lower )
+          && ( $self->upper <= $range->upper ) );
 
 }
 
@@ -117,16 +117,16 @@ sub inside {
     my $bool = $a->equal($b);
     my $bool = ( $a == $b );
 
-Returns true if the bounds have same endpoints and orientation.
+Returns true if the range have same endpoints and orientation.
 
 =cut
 
 sub equal {
     my $self = shift;
-    my ($bounds) = validate_pos( @_, { can => \@LUS }, 0 );
+    my ($range) = validate_pos( @_, { can => \@LUS }, 0 );
 
     # Return false if a comparison failed
-    foreach (@LUS) { return 0 if ( $self->$_ != $bounds->$_ ) }
+    foreach (@LUS) { return 0 if ( $self->$_ != $range->$_ ) }
 
     # Return true if all comparisons succeeded
     return 1;
@@ -136,15 +136,15 @@ sub equal {
 
     my $bool = $a->overlap($b);
 
-Returns true if the two bounds overlap, false otherwise.
+Returns true if the two range overlap, false otherwise.
 
 =cut
 
 sub overlap {
     my $self = shift;
-    my ($bounds) = validate_pos( @_, { can => \@LU } );
-    return ( ( $self->lower < $bounds->upper )
-          && ( $self->upper > $bounds->lower ) );
+    my ($range) = validate_pos( @_, { can => \@LU } );
+    return ( ( $self->lower < $range->upper )
+          && ( $self->upper > $range->lower ) );
 }
 
 1;

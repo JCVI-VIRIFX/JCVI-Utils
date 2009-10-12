@@ -9,17 +9,17 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Bounds::Interface - interface for bounds objects
+# JCVI::Range::Interface - interface for range objects
 
-package JCVI::Bounds::Interface;
+package JCVI::Range::Interface;
 
 use strict;
 use warnings;
 
 use base qw(
-  JCVI::Bounds::Interface::Basic
-  JCVI::Bounds::Interface::String
-  JCVI::Bounds::Interface::Comparisons
+  JCVI::Range::Interface::Basic
+  JCVI::Range::Interface::String
+  JCVI::Range::Interface::Comparisons
   );
 
 use Carp;
@@ -27,17 +27,17 @@ use Params::Validate qw(validate validate_pos validate_with);
 
 =head1 NAME
 
-JCVI::Bounds::Interface - interface for bounds objects
+JCVI::Range::Interface - interface for range objects
 
 =head1 SYNOPSIS
 
-    package MyBounds;
-    use base qw( JCVI::Bounds::Interface );
+    package MyRange;
+    use base qw( JCVI::Range::Interface );
     ...
 
 =head1 DESCRIPTION
 
-This provides the interface for bounds objects.
+This provides the interface for range objects.
 
 =cut
 

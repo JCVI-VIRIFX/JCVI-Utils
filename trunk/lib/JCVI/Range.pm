@@ -1,4 +1,4 @@
-# File: Bounds.pm
+# File: Range.pm
 # Author: kgalinsk
 # Created: Apr 15, 2009
 #
@@ -9,55 +9,55 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Bounds - class for boundaries on genetic sequence data
+# JCVI::Range - class for boundaries on genetic sequence data
 
-package JCVI::Bounds;
+package JCVI::Range;
 
 use strict;
 use warnings;
 
-use base qw( JCVI::Bounds::Interface );
+use base qw( JCVI::Range::Interface );
 
 use Carp;
 use List::Util qw( min max );
 use Params::Validate;
 
-use version; our $VERSION = qv('0.4.5');
+use version; our $VERSION = qv('0.5.0');
 
 =head1 NAME
 
-JCVI::Bounds - class for boundaries on genetic sequence data
+JCVI::Range - class for boundaries on genetic sequence data
 
 =head1 VERSION
 
-Version 0.4.5
+Version 0.5.0
 
 =head1 SYNOPSIS
 
-Create a bounds object which allows you to convert from 5' and 3' ends to upper
-and lower bounds.
+Create a range object which allows you to convert from 5' and 3' ends to upper
+and lower range.
 
-    my $bounds = JCVI::Bounds->e53( 52, 143 );
+    my $range = JCVI::Range->e53( 52, 143 );
 
-    my $lower  = $bounds->lower;  # 51
-    my $upper  = $bounds->upper;  # 143
-    my $strand = $bounds->strand; # 1
-    my $length = $bounds->length; # 92
-    my $phase  = $bounds->phase;  # 2
+    my $lower  = $range->lower;  # 51
+    my $upper  = $range->upper;  # 143
+    my $strand = $range->strand; # 1
+    my $length = $range->length; # 92
+    my $phase  = $range->phase;  # 2
 
-    my $seq_ref = $bounds->sequence(\$sequence); 
+    my $seq_ref = $range->sequence(\$sequence); 
 
-    $bounds->lower(86);
-    $bounds->upper(134);
-    $bounds->strand(-1);
+    $range->lower(86);
+    $range->upper(134);
+    $range->strand(-1);
     
-    my $end5 = $bounds->end5;     # 134
-    my $end3 = $bounds->end3;     # 87
+    my $end5 = $range->end5;     # 134
+    my $end3 = $range->end3;     # 87
     
 =head1 DESCRIPTION
 
 Store boundary information. Convert from interbase to end5/end3. Compute useful
-things like length and phase. Return sequence. Bounds are stored as an
+things like length and phase. Return sequence. Range are stored as an
 arrayref:
 
     [ $lower, $length, $strand ]
@@ -70,8 +70,8 @@ Entitites are stored in this format to make things easy to validate.
 
 Do not access array elements directly!
 
-    # $bounds->[0];     # BAD! >:-(
-    $bounds->lower();   # GOOD! :-)
+    # $range->[0];     # BAD! >:-(
+    $range->lower();   # GOOD! :-)
 
 =cut
 
@@ -89,10 +89,10 @@ our $STRAND_REGEX  = qr/^[+-]?[01]$/;
 
 =head2 new
 
-    my $bounds = JCVI::Bounds->new( );
-    my $bounds = JCVI::Bounds->new( $lower );
-    my $bounds = JCVI::Bounds->new( $lower, $length );
-    my $bounds = JCVI::Bounds->new( $lower, $length, $strand );
+    my $range = JCVI::Range->new( );
+    my $range = JCVI::Range->new( $lower );
+    my $range = JCVI::Range->new( $lower, $length );
+    my $range = JCVI::Range->new( $lower, $length, $strand );
 
 Basic constructor. Pass lower, length and strand.
 
@@ -112,7 +112,7 @@ sub new {
 
 =head2 e53
 
-    my $bounds = JCVI::Bounds->e53($end5, $end3);
+    my $range = JCVI::Range->e53($end5, $end3);
 
 Create the class given 5' and 3' end coordinates.
 
@@ -129,10 +129,10 @@ sub e53 {
 
 =head2 lus
 
-    my $bounds = JCVI::Bounds->lus($lower, $upper);
-    my $bounds = JCVI::Bounds->lus($lower, $upper, $strand);
+    my $range = JCVI::Range->lus($lower, $upper);
+    my $range = JCVI::Range->lus($lower, $upper, $strand);
     
-Create the class given lower and upper bounds, and possibly strand.
+Create the class given lower and upper range, and possibly strand.
 
 =cut
 
@@ -151,13 +151,13 @@ sub lus {
 
 =head2 ul
 
-    $bounds = JCVI::Bounds->ul($upper, $length);
+    $range = JCVI::Range->ul($upper, $length);
 
 Specify upper and length. Useful when using a regular expression to search for
 sequencing gaps:
 
     while ($seq =~ m/(N{20,})/g) {
-        push @gaps, JCVI::Bounds->ul(
+        push @gaps, JCVI::Range->ul(
             pos($seq),  # pos corresponds to upper bound of regular expression
             length($1)  # $1 is the stretch of Ns found
         );
@@ -178,8 +178,8 @@ sub ul {
 
 =head2 lower
 
-    $lower = $bounds->lower;
-    $bounds->lower($lower); 
+    $lower = $range->lower;
+    $range->lower($lower); 
 
 Get/set the lower bound.
 
@@ -201,8 +201,8 @@ sub lower {
 
 =head2 upper
 
-    $upper = $bounds->upper;
-    $bounds->upper($upper); 
+    $upper = $range->upper;
+    $range->upper($upper); 
 
 Get/set the upper bound.
 
@@ -222,7 +222,7 @@ sub upper {
 
 =head2 length
 
-    $length = $bounds->length;
+    $length = $range->length;
 
 Get the length
 
@@ -243,8 +243,8 @@ sub _length {
 
 =head2 strand
 
-    $strand = $bounds->strand;
-    $bounds->strand($strand);
+    $strand = $range->strand;
+    $range->strand($strand);
 
 Get/set the strand. Strand may be undef, 0, 1, or -1. Here are the meanings of
 the four values:
@@ -272,33 +272,33 @@ sub strand {
 
 =head1 COMBINATION METHODS
 
-Returns a new set of bounds given two bounds
+Returns a new set of range given two range
 
 =cut
 
 =head2 intersection
 
-    my $bounds = $a->intersection($b);
-    my $bounds = intersection( $a, $b ); 
+    my $range = $a->intersection($b);
+    my $range = intersection( $a, $b ); 
 
-Returns the intersection of two bounds. If they don't overlap, return undef.
+Returns the intersection of two range. If they don't overlap, return undef.
 
 =cut
 
 sub intersection {
     my $self = shift;
 
-    my ($bounds) = validate_pos( @_, { can => [qw( lower upper strand )] } );
+    my ($range) = validate_pos( @_, { can => [qw( lower upper strand )] } );
 
-    return undef unless ( $self->overlap($bounds) );
+    return undef unless ( $self->overlap($range) );
 
     # Get endpoints of intersection
-    my $lower = max( map { $_->lower } $self, $bounds );
-    my $upper = min( map { $_->upper } $self, $bounds );
+    my $lower = max( map { $_->lower } $self, $range );
+    my $upper = min( map { $_->upper } $self, $range );
     my $length = $upper - $lower;
 
     # Get strands for comparison
-    my ( $s1, $s2 ) = map { $_->strand } $self, $bounds;
+    my ( $s1, $s2 ) = map { $_->strand } $self, $range;
 
     # Create a new object of the same class as self
     my $class = ref($self);
@@ -313,8 +313,8 @@ sub intersection {
 =head1 BUGS
 
 Please report any bugs or feature requests to
-C<bug-jcvi-bounds at rt.cpan.org>, or through the web interface at
-L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=JCVI-Bounds>.
+C<bug-jcvi-range at rt.cpan.org>, or through the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=JCVI-Range>.
 I will be notified, and then you'll automatically be notified of progress on
 your bug as I make changes.
 
@@ -322,7 +322,7 @@ your bug as I make changes.
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc JCVI::Bounds
+    perldoc JCVI::Range
 
 You can also look for information at:
 
@@ -330,19 +330,19 @@ You can also look for information at:
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/JCVI-Bounds>
+L<http://annocpan.org/dist/JCVI-Range>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/JCVI-Bounds>
+L<http://cpanratings.perl.org/d/JCVI-Range>
 
 =item * RT: CPAN's request tracker
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=JCVI-Bounds>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=JCVI-Range>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/JCVI-Bounds>
+L<http://search.cpan.org/dist/JCVI-Range>
 
 =back
 

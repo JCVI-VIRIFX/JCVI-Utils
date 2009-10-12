@@ -9,29 +9,27 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Bounds::Set - A set of bounds
+# JCVI::Range::Set - A set of range
 
-package JCVI::Bounds::Set;
+package JCVI::Range::Set;
 
 use strict;
 use warnings;
 
 =head1 NAME
 
-JCVI::Bounds::Set - A set of bounds
+JCVI::Range::Set - A set of range
 
 =cut 
 
-use base qw( JCVI::Bounds::Set::Interface );
+use base qw( JCVI::Range::Set::Interface );
 
 use Carp;
 use Params::Validate;
 
-use JCVI::Bounds;
-
 =head1 SYNOPSIS
 
-Create an array of bounds which follows the bounds interface.
+Create an array of range which follows the range interface.
 
 =cut
 
@@ -39,10 +37,10 @@ Create an array of bounds which follows the bounds interface.
 
 =head2 new
 
-    my $set = JCVI::Bounds::Set->new();
-    my $set = JCVI::Bounds::Set->new( @bounds );
+    my $set = JCVI::Range::Set->new();
+    my $set = JCVI::Range::Set->new( @range );
 
-Create a new set and push any bounds provided onto the set
+Create a new set and push any range provided onto the set
 
 =cut
 
@@ -66,7 +64,7 @@ These are the methods that treat the set as an array
     
     $set->sort();
 
-Sort bounds in the set
+Sort range in the set
 
 =cut
 
@@ -79,9 +77,9 @@ sub sort {
 =head2 push
 
     $set->push( $bound );
-    $set->push( @bounds );
+    $set->push( @range );
 
-Push bounds onto set. Validate each bound.
+Push range onto set. Validate each bound.
 
 =cut
 
