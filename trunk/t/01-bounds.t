@@ -48,10 +48,10 @@ is( $range->phase,  1,   'phase correct' );
 is( $range->end5,   150, 'end5 correct' );
 is( $range->end3,   51,  'end3 correct' );
 
-ok( JCVI::Range->e53( 1, 10 ), 'e53 works' );
+ok( JCVI::Range->new_53( 1, 10 ), 'new_53 works' );
 
-my $e53 = JCVI::Range->e53( 150, 51 );
-is_deeply( $e53, $range, 'e53 == new' );
+my $e53 = JCVI::Range->new_53( 150, 51 );
+is_deeply( $e53, $range, 'new_53 == new' );
 
 # Test range modification
 $range->lower(60);

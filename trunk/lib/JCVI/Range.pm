@@ -9,7 +9,7 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Range - class for boundaries on genetic sequence data
+# JCVI::Range - class for ranges on genetic sequence data
 
 package JCVI::Range;
 
@@ -26,7 +26,7 @@ use version; our $VERSION = qv('0.5.0');
 
 =head1 NAME
 
-JCVI::Range - class for boundaries on genetic sequence data
+JCVI::Range - class for ranges on genetic sequence data
 
 =head1 VERSION
 
@@ -34,10 +34,7 @@ Version 0.5.0
 
 =head1 SYNOPSIS
 
-Create a range object which allows you to convert from 5' and 3' ends to upper
-and lower range.
-
-    my $range = JCVI::Range->e53( 52, 143 );
+    my $range = JCVI::Range->new_53( 52, 143 );
 
     my $lower  = $range->lower;  # 51
     my $upper  = $range->upper;  # 143
@@ -110,15 +107,15 @@ sub new {
     bless $self, $class;
 }
 
-=head2 e53
+=head2 new_53
 
-    my $range = JCVI::Range->e53($end5, $end3);
+    my $range = JCVI::Range->new_53( $end5, $end3 );
 
 Create the class given 5' and 3' end coordinates.
 
 =cut
 
-sub e53 {
+sub new_53 {
     my $class = shift;
     my ( $e5, $e3 ) = validate_pos( @_, ( { regex => $POS_INT_REGEX } ) x 2 );
 
@@ -127,31 +124,29 @@ sub e53 {
     return bless( [ $e5 - 1, 1 ], $class );
 }
 
-=head2 lus
+=head2 new_lus
 
-    my $range = JCVI::Range->lus($lower, $upper);
-    my $range = JCVI::Range->lus($lower, $upper, $strand);
+    my $range = JCVI::Range->new_lus( $lower, $upper );
+    my $range = JCVI::Range->new_lus( $lower, $upper, $strand );
     
 Create the class given lower and upper range, and possibly strand.
 
 =cut
 
-sub lus {
+sub new_lus {
     my $class = shift;
-    my $self  = [
-        validate_pos(
-            @_,
-            ( { regex => $POS_INT_REGEX } ) x 2,
-            { optional => 1, regex => $STRAND_REGEX }
-        )
-    ];
-    $self->[1] -= $self->[0];
-    bless $self, $class;
+    my ( $lower, $upper, $strand ) = validate_pos(
+        @_,
+        ( { regex => $POS_INT_REGEX } ) x 2,
+        { optional => 1, regex => $STRAND_REGEX }
+    );
+    my $length = $upper - $lower;
+    $class->new( $lower, $length, $strand );
 }
 
-=head2 ul
+=head2 new_ul
 
-    $range = JCVI::Range->ul($upper, $length);
+    my $range = JCVI::Range->new_ul($upper, $length);
 
 Specify upper and length. Useful when using a regular expression to search for
 sequencing gaps:
@@ -165,11 +160,30 @@ sequencing gaps:
 
 =cut
 
-sub ul {
+sub new_ul {
     my $class = shift;
     my ( $upper, $length ) =
       validate_pos( @_, ( { regex => $POS_INT_REGEX } ) x 2 );
     $class->new( $upper - $length, $length );
+}
+
+=head2 cast
+
+    my $range = JCVI::Range->cast( $range_like_object );
+
+If another object implements the required lower/upper/strand methods defined by
+the JCVI::Range interface, you can cast it as a JCVI::Range object. Also, if
+your range-like object implements the get_lus method (returning lower, upper
+and strand as an arrayref), then cast will use that method instead. 
+
+=cut
+
+sub cast {
+    my $class = shift;
+    my ($object) = validate_pos( @_, { can => [qw( lower upper strand )]});
+
+    return $class->new_lus( @{ $object->get_lus } ) if ($object->can('get_lus'));
+    return $class->new_lus( map { $object->$_ } qw( lower upper strand ) );
 }
 
 =head1 ACCESSORS
@@ -190,13 +204,12 @@ sub lower {
     return $self->[$LOWER_INDEX] unless (@_);
 
     # Validate the lower bound
-    croak 'Lower must be a non-negative integer'
+    croak 'Lower bound must be a non-negative integer'
       unless ( $_[0] =~ /$POS_INT_REGEX/ );
 
     # Adjust the length and lower bound
-    $self->_length( $self->upper() - $_[0] );
+    $self->_set_length( $self->upper() - $_[0] );
     return $self->[$LOWER_INDEX] = $_[0];
-
 }
 
 =head2 upper
@@ -214,9 +227,9 @@ sub upper {
     # upper = lower + length
     return $self->lower() + $self->length() unless (@_);
 
-    # new_upper = lower + new_length
-    # new_length = new_upper - lower
-    $self->_length( $_[0] - $self->lower );
+    # new_upper = lower + new_set_length
+    # new_set_length = new_upper - lower
+    $self->_set_length( $_[0] - $self->lower );
     return $_[0];
 }
 
@@ -224,14 +237,14 @@ sub upper {
 
     $length = $range->length;
 
-Get the length
+Get the length.
 
 =cut
 
 sub length { return $_[0][$LENGTH_INDEX] }
 
 # Set the length. The lower bound is the anchor (upper bound changes).
-sub _length {
+sub _set_length {
     my $self = shift;
 
     # Validate the length
@@ -262,7 +275,7 @@ sub strand {
     return $self->[$STRAND_INDEX] unless (@_);
 
     # Delete strand if undef passed
-    return undef($self->[$STRAND_INDEX]) unless ( defined $_[0] );
+    return undef( $self->[$STRAND_INDEX] ) unless ( defined $_[0] );
 
     # Validate strand
     croak 'Value passed to strand must be undef, 0, 1, or -1'
@@ -281,7 +294,7 @@ Returns a new set of range given two range
     my $range = $a->intersection($b);
     my $range = intersection( $a, $b ); 
 
-Returns the intersection of two range. If they don't overlap, return undef.
+Returns the intersection of two ranges. If they don't overlap, return undef.
 
 =cut
 

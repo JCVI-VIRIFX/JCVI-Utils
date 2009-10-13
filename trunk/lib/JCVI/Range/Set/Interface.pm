@@ -122,7 +122,7 @@ sub introns {
     my $a = $range->[0];
     for ( my $i = 1 ; $i < @$range ; $i++ ) {
         $b = $range->[$i];
-        push @$introns, JCVI::Range->lus( $a->upper, $b->lower );
+        push @$introns, JCVI::Range->new_lus( $a->upper, $b->lower );
         $a = $b;
     }
 
