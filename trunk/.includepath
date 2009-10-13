@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<includepath>
+  <includepathentry path="${resource_loc:/JCVI-Feature/lib}" />
+  <includepathentry path="${resource_loc:/JCVI-Location/lib}" />
+  <includepathentry path="${resource_loc:/JCVI-Range/lib}" />
+</includepath>
+
