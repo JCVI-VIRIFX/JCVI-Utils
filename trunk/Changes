@@ -1,5 +1,9 @@
 Revision history for JCVI::Range
 
+0.5.1
+  - Renamed regular expressions
+  - 5' and 3' end properly validated to be positive integers
+
 0.5.0   Oct 12 2009
   - Renamed from JCVI::Bounds to JCVI::Range
   - Removed phase method

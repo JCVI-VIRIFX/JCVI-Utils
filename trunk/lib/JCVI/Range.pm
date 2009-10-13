@@ -22,7 +22,7 @@ use Carp;
 use List::Util qw( min max );
 use Params::Validate;
 
-use version; our $VERSION = qv('0.5.0');
+use version; our $VERSION = qv('0.5.1');
 
 =head1 NAME
 
@@ -30,7 +30,7 @@ JCVI::Range - class for ranges on genetic sequence data
 
 =head1 VERSION
 
-Version 0.5.0
+Version 0.5.1
 
 =head1 SYNOPSIS
 
@@ -75,8 +75,8 @@ my $LOWER_INDEX  = 0;
 my $LENGTH_INDEX = 1;
 my $STRAND_INDEX = 2;
 
-our $INT_REGEX     = qr/^[+-]?\d+$/;
-our $POS_INT_REGEX = qr/^\d+$/;
+our $NON_NEG_INT_REGEX = qr/^\d+$/;
+our $POS_INT_REGEX = qr/^[1-9]\d*$/;
 our $STRAND_REGEX  = qr/^[+-]?[01]$/;
 
 =head1 CONSTRUCTORS
@@ -99,7 +99,7 @@ sub new {
     my $self  = [
         validate_pos(
             @_,
-            ( { default => 0, regex => $POS_INT_REGEX } ) x 2,
+            ( { default => 0, regex => $NON_NEG_INT_REGEX } ) x 2,
             { default => undef, regex => $STRAND_REGEX }
         )
     ];
@@ -136,7 +136,7 @@ sub new_lus {
     my $class = shift;
     my ( $lower, $upper, $strand ) = validate_pos(
         @_,
-        ( { regex => $POS_INT_REGEX } ) x 2,
+        ( { regex => $NON_NEG_INT_REGEX } ) x 2,
         { optional => 1, regex => $STRAND_REGEX }
     );
     my $length = $upper - $lower;
@@ -162,7 +162,7 @@ sequencing gaps:
 sub new_ul {
     my $class = shift;
     my ( $upper, $length ) =
-      validate_pos( @_, ( { regex => $POS_INT_REGEX } ) x 2 );
+      validate_pos( @_, ( { regex => $NON_NEG_INT_REGEX } ) x 2 );
     $class->new( $upper - $length, $length );
 }
 
@@ -204,7 +204,7 @@ sub lower {
 
     # Validate the lower bound
     croak 'Lower bound must be a non-negative integer'
-      unless ( $_[0] =~ /$POS_INT_REGEX/ );
+      unless ( $_[0] =~ /$NON_NEG_INT_REGEX/ );
 
     # Adjust the length and lower bound
     $self->_set_length( $self->upper() - $_[0] );
@@ -248,7 +248,7 @@ sub _set_length {
 
     # Validate the length
     croak 'Length must be a non-negative integer'
-      unless ( $_[0] =~ /$POS_INT_REGEX/ );
+      unless ( $_[0] =~ /$NON_NEG_INT_REGEX/ );
 
     return $self->[$LENGTH_INDEX] = $_[0] * 1;
 }
