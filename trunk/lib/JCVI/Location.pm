@@ -20,6 +20,7 @@ use base qw( JCVI::Range::Interface );
 
 use Carp;
 use List::Util qw( min max );
+use Params::Validate;
 
 =head1 NAME
 
