@@ -34,7 +34,10 @@ JCVI::Range::Interface::String - methods for printing out range objects
 
 =head1 DESCRIPTION
 
-
+This mixin allows ranges to be printed out on the command line more easily,
+saving a lot of effort. You may simply call "print $range;" and an easily
+readable range string will be printed. Make sure to add your own newline
+characters.
 
 =cut
 

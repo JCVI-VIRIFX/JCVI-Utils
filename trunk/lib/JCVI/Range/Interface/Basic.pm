@@ -26,51 +26,50 @@ JCVI::Range::Interface::Basic - basic range functionality
 
 =head1 SYNOPSIS
 
-    # You define these
-    $range->lower;
-    $range->upper;
-    $range->strand;
-
+    # You define these accessors/mutators
+    $range->lower();
+    $range->upper();
+    $range->strand();
+    
     # The following are provided based on the above
-    $range->end5;
-    $range->end3;
+    $range->end5();
+    $range->end3();
+
+    $range->length();
     
-    $range->length;
-    $range->phase;
-    
-    $range->sequence;
+    $range->sequence( \$sequence );
 
     $range->extend( $offset );
-    $range->extend( $lower_offset, $upper_offset );
+    $range->extend( $offset, $direction );
 
 =head1 DESCRIPTION
 
-This contains the most basic interface methods for range.
+This contains the most basic interface methods for range objects.
 
 =cut
 
 =head1 ABSTRACT METHODS
 
-These accessors must be defined in your class.
+These accessors/mutators must be defined in your class.
 
 =head2 lower
 
-    my $lower = $obj->lower();
-    $obj->lower($lower);
+    my $lower = $range->lower();
+    $range->lower($lower);
 
 Get/set lower bound. 
 
 =head2 upper
 
-    my $upper = $obj->upper();
-    $obj->upper($upper);
+    my $upper = $range->upper();
+    $range->upper($upper);
 
 Get/set upper bound.
 
 =head2 strand
 
-    my $strand = $obj->strand();
-    $obj->strand($strand);
+    my $strand = $range->strand();
+    $range->strand($strand);
 
 Get/set strand.
 
@@ -84,7 +83,7 @@ These are mixins that require the abstract methods to function
 
 =head2 length
 
-    my $length = $obj->length();
+    my $length = $range->length();
 
 Return distance between upper and lower range.
 
@@ -99,20 +98,6 @@ sub length {
     return undef unless ( defined($lower) && defined($upper) );
 
     return $upper - $lower;
-}
-
-=head2 phase
-
-    $phase = $range->phase();
-
-Get the phase (length % 3).
-
-=cut
-
-sub phase {
-    my $length = shift->length();
-    return undef unless ( defined $length );
-    return $length % 3;
 }
 
 =head1 5'/3' END CONVERSION
@@ -177,12 +162,12 @@ sub _end {
 
 =head2 sequence
 
-    $sub_ref = $obj->sequence($seq_ref);
+    $sub_ref = $range->sequence($seq_ref);
 
 Extract substring from a sequence reference. Returned as a reference. The same
 as:
 
-    substr($sequence, $obj->lower, $obj->length);
+    substr( $sequence, $range->lower, $range->length );
 
 =cut
 

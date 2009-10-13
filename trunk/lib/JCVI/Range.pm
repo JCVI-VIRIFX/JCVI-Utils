@@ -40,7 +40,6 @@ Version 0.5.0
     my $upper  = $range->upper;  # 143
     my $strand = $range->strand; # 1
     my $length = $range->length; # 92
-    my $phase  = $range->phase;  # 2
 
     my $seq_ref = $range->sequence(\$sequence); 
 
@@ -67,8 +66,8 @@ Entitites are stored in this format to make things easy to validate.
 
 Do not access array elements directly!
 
-    # $range->[0];     # BAD! >:-(
-    $range->lower();   # GOOD! :-)
+    # $range->[0];     # BAD!
+    $range->lower();   # GOOD!
 
 =cut
 

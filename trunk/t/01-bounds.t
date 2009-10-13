@@ -1,6 +1,6 @@
 #!perl
 
-use Test::More tests => 28;
+use Test::More tests => 27;
 
 use JCVI::Range;
 
@@ -44,7 +44,6 @@ is( $range->lower,  50,  'lower correct' );
 is( $range->length, 100, 'length correct' );
 is( $range->strand, -1,  'strand correct' );
 is( $range->upper,  150, 'upper correct' );
-is( $range->phase,  1,   'phase correct' );
 is( $range->end5,   150, 'end5 correct' );
 is( $range->end3,   51,  'end3 correct' );
 

@@ -30,9 +30,13 @@ JCVI::Range::Interface::Comparisons - comparison methods for range objects
 =head1 SYNOPSIS
 
     $range1 <=> $range2;
-    $range1->spaceship($range2);
+    $range1->spaceship( $range2 );
 
     $range->contains( $point );
+
+    $range1->outside( $range2 );
+    $range1->inside( $range2 );
+    $range1->overlap( $range2 );
 
 =head1 DESCRIPTION
 
@@ -63,8 +67,8 @@ the same, then it tries to order based upon upper bound.
 sub spaceship {
     my $self = shift;
     my ($bound) = validate_pos( @_, { can => [qw(lower upper)] }, 0 );
-    return ( $self->lower <=> $bound->lower )
-      || ( $self->upper <=> $bound->upper );
+    return ( ( $self->lower <=> $bound->lower )
+          || ( $self->upper <=> $bound->upper ) );
 }
 
 =head2 contains
