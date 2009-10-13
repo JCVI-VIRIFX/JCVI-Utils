@@ -18,7 +18,7 @@ use strict;
 
 use base qw( JCVI::Range::Interface );
 
-use Regexp::Common;
+use Carp;
 use List::Util qw( min max );
 
 =head1 NAME
