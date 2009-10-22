@@ -1,5 +1,9 @@
 Revision history for DBIx::JCVI
 
+0.1.2
+  - Added connect function
+  - Added prompt_username and prompt_username_password functions
+
 0.1.1   2009-09-14
   - Changed :dbh import option to :export
   - Fleshed out function name validations in :export

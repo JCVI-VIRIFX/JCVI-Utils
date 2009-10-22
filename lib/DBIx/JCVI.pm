@@ -26,11 +26,11 @@ DBIx::JCVI - open and cache a database connection
 
 =head1 VERSION
 
-Version 0.1.1
+Version 0.1.2
 
 =cut
 
-use version; our $VERSION = qv('0.1.1');
+use version; our $VERSION = qv('0.1.2');
 
 =head1 SYNOPSIS
 
@@ -49,6 +49,9 @@ use version; our $VERSION = qv('0.1.1');
     use DBIx::JCVI ( ':export' => 'cached_dbh' );   # method name is 'cached_dbh'
     use DBIx::JCVI qw( :export cached_dbh );        # same as above
     my $dbh = cached_dbh();
+
+    # Connect function
+    my $dbh = DBIx::JCVI->connect( $database, \%options );
 
     # Credentials (username/password) functions
     my ( $username, $password ) = DBIx::JCVI->read_password_file( $filename );
@@ -119,9 +122,25 @@ sub import {
         }
     );
 
+The driver defaults to Sybase, but SQLite is supported as well. If an SQLite
+database is used, everything else is ignored (except for "cache").
+
 The username/password supercede the credentials returned from the method. The
 arguments are optional and are passed to the method. This takes the input and
 then connects to the database.
+
+The Data Source Name (dsn) variable gets appendeded to the
+"dbi:Sybase:database=$db" string. It may even be a hash:
+
+    my $dbh = DBIx::JCVI->connect( 'foo', { dsn => { packetSize => 8092 } } );
+
+The attributes are a hash that get passed at the end of the DBI->connect.
+
+    DBI->connect(
+        "dbi:$driver:database=$database;$dsn",
+        $username, $password,
+        \%attributes
+    );
 
 =cut
 
@@ -226,6 +245,14 @@ sub connect {
 
     return $dbh;
 }
+
+=head2 list_methods
+
+    my $methods_arrayref = DBIx::JCVI->list_methods();
+
+=cut
+
+sub list_methods { return [ sort keys %METHODS ] }
 
 =head2 cache_dbh
 
