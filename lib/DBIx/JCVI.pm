@@ -104,6 +104,129 @@ sub import {
 
 =cut
 
+=head2 connect
+
+    my $dbh = DBIx::JCVI->connect( $database,
+        {
+            driver     => $driver,      # default is 'Sybase'
+            username   => $username,    # default is $ENV{USER}
+            password   => $password,
+            method     => $method,      # method for selecting credentials
+            arguments  => $arguments,   # arguments to pass to the method
+            dsn        => $dsn,         # miscellaneous stuff to put in the DSN
+            attributes => \%attributes, # attributes to pass to connect
+            cache      => $bool,        # cache the handle? default is false
+        }
+    );
+
+The username/password supercede the credentials returned from the method. The
+arguments are optional and are passed to the method. This takes the input and
+then connects to the database.
+
+=cut
+
+my %METHODS = (
+    sqshrc        => 'read_sqshrc_credentials',
+    prompt        => undef,
+    password_file => 'read_password_file'
+);
+
+sub connect {
+    my $class = shift;
+
+    # Get arguments
+    my ( $database, @p ) = validate_pos(
+        @_,
+        { type     => Params::Validate::SCALAR },
+        { optional => 1, type => Params::Validate::HASHREF }
+    );
+    my %p = validate(
+        @p,
+        {
+            driver => {
+                default => 'Sybase',
+                type    => Params::Validate::SCALAR,
+                regex   => qr/^(?:Sybase:SQLite)$/
+            },
+            username => { optional => 1, type => Params::Validate::SCALAR },
+            password => { optional => 1, type => Params::Validate::SCALAR },
+            method   => {
+                default   => 'sqshrc',
+                type      => Params::Validate::SCALAR,
+                callbacks => {
+                    'valid method' => sub { exists $METHODS{ $_[0] } }
+                }
+            },
+            arguments => { optional => 1 },
+            dsn       => {
+                optional => 1,
+                type     => Params::Validate::SCALAR | Params::Validate::HASHREF
+            },
+            attributes => { default  => {}, type => Params::Validate::HASHREF },
+            cache      => { optional => 1 }
+        }
+    );
+
+    my $dbh;
+    if ( $p{driver} eq 'SQLite' ) {
+        $dbh = DBI->connect( "dbi:SQLite:dbname=$database", '', '' );
+    }
+    else {
+
+        # Figure out credentials
+        my ( $username, $password ) = @p{qw( username password )};
+
+        # If password was supplied but not username, assume current user
+        if ( $password && ( !$username ) ) { $username = $ENV{USER} }
+        elsif ( !( $username && $password ) ) {
+
+            # Only prompt for data that wasn't supplied
+            if ( $p{method} eq 'prompt' ) {
+                if ($username) { $password = $class->prompt_password() }
+                else {
+                    ( $username, $password ) =
+                      $class->prompt_username_password( @{ $p{arguments} } );
+                }
+            }
+
+            # Rest of methods are more straightforward
+            else {
+                my $method      = $METHODS{ $p{method} };
+                my @credentials = $class->$method( @{ $p{arguments} } );
+
+                $username ||= $credentials[0];
+                $password ||= $credentials[1];
+            }
+
+            if ( !( $username && $password ) ) {
+                die 'Incomplete credentials';
+            }
+        }
+
+        # Build the data source string
+        my $data_source = "dbi:$p{driver}:database=$database";
+        if ( $p{dsn} ) {
+            unless ( ref $p{dsn} ) {
+                $data_source .= ";$p{dsn}";
+            }
+            else {
+                my @dsn = map { "$_=$p{dsn}{$_}" } keys %{ $p{dsn} };
+                $data_source = join( ';', $data_source, @dsn );
+            }
+        }
+
+        $dbh =
+          DBI->connect( $data_source, $username, $password, $p{attributes} )
+          or die "Unable to connect to the database: $DBI::errstr";
+    }
+
+    if ( $p{cache} ) {
+        $class->cache_dbh($dbh);
+    }
+
+    return $dbh;
+}
+
 =head2 cache_dbh
 
     DBIx::JCVI->cache_dbh( $dbh );
@@ -140,11 +263,11 @@ the first line and the password on the second.
 =cut
 
 sub read_password_file {
-    shift if ( $_[0] eq __PACKAGE__ );
+    my $class = shift;
 
     my ($pf) = validate_pos( @_, { type => Params::Validate::SCALAR } );
 
-    open PF, $pf or die qq{Can't open password file "$pf"};
+    open PF, $pf or die qq{Can't open password file "$pf": $!};
 
     # Read the first two lines
     my $username = <PF>;
@@ -173,7 +296,8 @@ Read all set option from the current user's sqshrc:
 =cut
 
 sub read_sqshrc {
-    open SQSHRC, "$ENV{HOME}/.sqshrc" or die "Can't open $ENV{USER}'s .sqshrc!";
+    open SQSHRC, "$ENV{HOME}/.sqshrc"
+      or die "Can't open $ENV{USER}'s .sqshrc!";
 
     my %sqshrc;
     while (<SQSHRC>) {
@@ -228,6 +352,45 @@ sub prompt_password {
     return $password;
 }
 
+=head2 prompt_username
+
+    my $username = DBIx::JCVI->prompt_username();
+    my $username = DBIx::JCVI->prompt_username( $default_username );
+
+Prompt for the user's password.
+
+=cut
+
+sub prompt_username {
+    my $class = shift;
+    my $default = $_[0] || $ENV{USER};
+
+    local $| = 1;
+
+    print "Username [$default]: ";
+    my $username = <STDIN>;
+    chomp $username;
+    $username ||= $default;
+}
+
+=head2 prompt_username_password
+
+    my ( $username, $password ) = DBIx::JCVI->prompt_username_password();
+    my ( $username, $password ) = DBIx::JCVI->prompt_username_password( $default_username );
+
+Prompt for username and password.
+
+=cut
+
+sub prompt_username_password {
+    my $class = shift;
+
+    my $username = $class->prompt_username(@_);
+    my $password = $class->prompt_password();
+
+    return ( $username, $password );
+}
+
 =head1 AUTHOR
 
 "Kevin Galinsky", C<< <"kgalinsk at jcvi.org"> >>
@@ -240,7 +403,7 @@ Please report any bugs or feature requests to C<< <"kgalinsk at jcvi.org"> >>.
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc DBIx::SQSHRC
+    perldoc DBIx::JCVI
 
 =head1 COPYRIGHT & LICENSE
 
@@ -248,4 +411,4 @@ Copyright 2009 J. Craig Venter Institute, all rights reserved.
 
 =cut
 
-1;    # End of DBIx::SQSHRC
+1;
