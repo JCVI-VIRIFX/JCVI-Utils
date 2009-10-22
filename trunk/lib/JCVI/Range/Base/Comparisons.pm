@@ -9,9 +9,9 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Range::Interface::Comparisons - comparison methods for range objects
+# JCVI::Range::Base::Comparisons - comparison methods for range objects
 
-package JCVI::Range::Interface::Comparisons;
+package JCVI::Range::Base::Comparisons;
 
 use strict;
 use warnings;
@@ -25,7 +25,7 @@ use overload
 
 =head1 NAME
 
-JCVI::Range::Interface::Comparisons - comparison methods for range objects
+JCVI::Range::Base::Comparisons - comparison methods for range objects
 
 =head1 SYNOPSIS
 

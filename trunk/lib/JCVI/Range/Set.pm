@@ -9,7 +9,7 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Range::Set - A set of range
+# JCVI::Range::Set - A set of ranges
 
 package JCVI::Range::Set;
 
@@ -18,18 +18,18 @@ use warnings;
 
 =head1 NAME
 
-JCVI::Range::Set - A set of range
+JCVI::Range::Set - A set of ranges
 
 =cut 
 
-use base qw( JCVI::Range::Set::Interface );
+use base qw( JCVI::Range::Set::Base );
 
 use Carp;
 use Params::Validate;
 
 =head1 SYNOPSIS
 
-Create an array of range which follows the range interface.
+Create an array of ranges which follows the range interface.
 
 =cut
 

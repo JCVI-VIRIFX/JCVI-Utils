@@ -16,7 +16,7 @@ package JCVI::Range;
 use strict;
 use warnings;
 
-use base qw( JCVI::Range::Interface );
+use base qw( JCVI::Range::Base );
 
 use Carp;
 use List::Util qw( min max );

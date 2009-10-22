@@ -9,9 +9,9 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Range::Interface::String - methods for printing out range objects
+# JCVI::Range::Base::String - methods for printing out range objects
 
-package JCVI::Range::Interface::String;
+package JCVI::Range::Base::String;
 
 use strict;
 use warnings;
@@ -23,7 +23,7 @@ use overload '""' => \&_string;
 
 =head1 NAME
 
-JCVI::Range::Interface::String - methods for printing out range objects
+JCVI::Range::Base::String - methods for printing out range objects
 
 =head1 SYNOPSIS
 
@@ -97,8 +97,8 @@ sub _string {
 
 =head2 default_string_method
 
-    my $method = JCVI::Range::Interface::String->default_string_method();
-    JCVI::Range::Interface::String->default_string_method( $method );
+    my $method = JCVI::Range::Base::String->default_string_method();
+    JCVI::Range::Base::String->default_string_method( $method );
     
     my $method = $range->default_string_method();
     $range->default_string_method( $method );
@@ -126,8 +126,8 @@ sub default_string_method {
 
 =head2 default_string_integer_width
 
-    my $width = JCVI::Range::Interface::String->default_string_integer_width();
-    JCVI::Range::Interface::String->default_string_integer_width( $width );
+    my $width = JCVI::Range::Base::String->default_string_integer_width();
+    JCVI::Range::Base::String->default_string_integer_width( $width );
     
     my $width = $range->default_string_integer_width();
     $range->default_string_integer_width( $width );

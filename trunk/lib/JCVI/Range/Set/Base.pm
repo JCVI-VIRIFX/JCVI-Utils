@@ -1,4 +1,4 @@
-# File: Interface.pm
+# File: Base.pm
 # Author: kgalinsk
 # Created: Jul 13, 2009
 #
@@ -9,20 +9,20 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Range::Set::Interface - interface for sets of range
+# JCVI::Range::Set::Base - base class for sets of range
 
-package JCVI::Range::Set::Interface;
+package JCVI::Range::Set::Base;
 
 use strict;
 use warnings;
 
 =head1 NAME
 
-JCVI::Range::Set::Interface - Interface for sets of range
+JCVI::Range::Set::Base - base class for sets of range
 
 =cut
 
-use base qw( JCVI::Range::Interface );
+use base qw( JCVI::Range::Base );
 
 use Carp;
 use List::Util qw(min max sum);
@@ -39,7 +39,7 @@ use JCVI::Range;
     my $range = $set->_exons();
 
 This is the only method you need to define in your module. It returns an array
-of range. It won't be modified, so it is ok to return an internal data
+of ranges. It won't be modified, so it is ok to return an internal data
 structure for speed.
 
 Many methods below will have two definitions; a public one and a private one

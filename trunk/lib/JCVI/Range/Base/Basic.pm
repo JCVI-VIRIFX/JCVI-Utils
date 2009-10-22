@@ -9,9 +9,9 @@
 #
 # Copyright 2009, J. Craig Venter Institute
 #
-# JCVI::Range::Interface::Basic - basic range functionality
+# JCVI::Range::Base::Basic - basic range functionality
 
-package JCVI::Range::Interface::Basic;
+package JCVI::Range::Base::Basic;
 
 use strict;
 use warnings;
@@ -22,7 +22,7 @@ use Log::Log4perl qw(:easy);
 
 =head1 NAME
 
-JCVI::Range::Interface::Basic - basic range functionality
+JCVI::Range::Base::Basic - basic range functionality
 
 =head1 SYNOPSIS
 
@@ -44,7 +44,7 @@ JCVI::Range::Interface::Basic - basic range functionality
 
 =head1 DESCRIPTION
 
-This contains the most basic interface methods for range objects.
+This contains the most basic methods for range objects.
 
 =cut
 
