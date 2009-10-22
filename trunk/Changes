@@ -1,4 +1,8 @@
 Revision history for JCVI-Location
 
+0.0.2   Oct 22 2009
+  - JCVI::Location contains JCVI::Range and use AUTOLOAD to gain access to
+    JCVI::Range's methods.
+
 0.0.1   Oct 13 2009
   - Releasing first version of JCVI::Location based on JCVI::Range
