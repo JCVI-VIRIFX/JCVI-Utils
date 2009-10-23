@@ -3,6 +3,9 @@ Revision history for JCVI::Range
 0.5.1
   - Renamed regular expressions
   - 5' and 3' end properly validated to be positive integers
+  - Rename 'Interface' to 'Base'
+  - Added union method to Range
+  - Renamed tests
 
 0.5.0   Oct 12 2009
   - Renamed from JCVI::Bounds to JCVI::Range
