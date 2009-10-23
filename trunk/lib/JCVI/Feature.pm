@@ -16,7 +16,7 @@ package JCVI::Feature;
 use warnings;
 use strict;
 
-use Class::Accessor::Fast;
+use base qw( Class::Accessor::Fast );
 __PACKAGE__->mk_accessors(
     qw(
       id type aliases
