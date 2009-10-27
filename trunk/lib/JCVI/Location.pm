@@ -25,11 +25,11 @@ JCVI::Location - locations on DNA sequences
 
 =head1 VERSION
 
-Version 0.0.2
+Version 0.0.3
 
 =cut
 
-use version; our $VERSION = qv('0.0.2');
+use version; our $VERSION = qv('0.0.3');
 
 =head1 SYNOPSIS
 
@@ -128,52 +128,72 @@ sub phase {
     return $_[0][$SOURCE_INDEX] = $_[1] * 1;
 }
 
-our $AUTOLOAD;
+=head1 AUTOLOADED METHODS
 
+JCVI::Location will autoload methods that access the range's values. This
+allows you to access range's methods and functions as though they were
+location's. Three methods are loaded on require:
+
+=over
+
+=item lower
+
+=item upper
+
+=item strand
+
+=back
+
+=cut
+
+foreach (qw( lower upper strand )) { __PACKAGE__->_make_method($_) }
+
+our $AUTOLOAD;
 # "Magic" code that autogenerates the JCVI::Range methods
 sub AUTOLOAD {
     my $self = shift;
     my ($sub_name) = $AUTOLOAD =~ m/(\w+)$/;
 
-    my $class;
-    my $sub;
-    
     # Create wrapper around a JCVI::Range object method
-    if ( $class = ref($self) ) {
+    if ( my $class = ref($self) ) {
         croak qq{Invalid method "$sub_name"}
-          unless ( JCVI::Range->can($sub_name) );
-        
-        $sub = sub {
-            return shift->range->$sub_name(@_);
-        };
+          unless ( $self->range->can($sub_name) );
+        $class->_make_method($sub_name);
     }
+
     # Create wrapper around a JCVI::Range constructor
     else {
-        $class = $self;
-
         croak qq{Invalid constructor "$sub_name"}
           unless ( JCVI::Range->can($sub_name) );
-
-        $sub = sub {
-            my $class = shift;
-            my ( $source, $range_params, $phase ) = @_;
-
-            # Validate phase and create the range object
-            if ($phase) {
-                croak "Invalid phase $phase (must be one of 0, 1 or 2)"
-                  unless ( $_[1] =~ $PHASE_REGEX );
-            }
-            my $range = JCVI::Range->$sub_name(@$range_params);
-
-            # Create the location object
-            return bless [ $source, $range, $phase ], $class;
-        };
+        $self->_make_constructor($sub_name);
     }
 
-    # Inject the method and run it
-    no strict 'refs';
-    *{"${class}::${sub_name}"} = \&$sub;
     $self->$sub_name(@_);
+}
+
+sub _make_method {
+    my ( $class, $method ) = @_;
+    no strict 'refs';
+    *{"${class}::${method}"} = sub { return shift->range->$method(@_) }
+}
+
+sub _make_constructor {
+    my ( $class, $constructor ) = @_;
+    no strict 'refs';
+    *{"${class}::${constructor}"} = sub {
+        my $class = shift;
+        my ( $source, $range_params, $phase ) = @_;
+
+        # Validate phase and create the range object
+        if ($phase) {
+            croak "Invalid phase $phase (must be one of 0, 1 or 2)"
+              unless ( $_[1] =~ $PHASE_REGEX );
+        }
+        my $range = JCVI::Range->$constructor(@$range_params);
+
+        # Create the location object
+        return bless [ $source, $range, $phase ], $class;
+    };
 }
 
 =head1 AUTHOR
