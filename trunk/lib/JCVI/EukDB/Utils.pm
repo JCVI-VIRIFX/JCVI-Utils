@@ -16,6 +16,10 @@ package JCVI::EukDB::Utils;
 use strict;
 use warnings;
 
+use Carp;
+use File::Temp;
+use Sybase::TempTable;
+
 =head1 NAME
 
 JCVI::EukDB::Utils - utilities for eukaryotic databases
@@ -30,25 +34,30 @@ JCVI::EukDB::Utils - utilities for eukaryotic databases
 
 =cut
 
+my $SMALL_ARRAY_THRESHOLD = 20;
+
 =head1 PUBLIC METHODS
 
 =cut
 
-=head1 UTILITY METHODS
-
-The following methods are useful for converting between database values, such 
-  as feature names and pub_loci and for converting between different ways of 
-  representing this data, including arrays, files, and temporary tables.
+=head2 GENERIC UTILITIES
 
 =cut
 
-=head1 GENERIC METHODS
+=head3 arrayref_to_temp_file
+
+    my $temp_file = $utils->arrayref_to_temp_file(\@array);
+    my $temp_file = $utils->arrayref_to_temp_file($arrayref);
+
+Create a temporary file (provided by File::Temp) given an array of text.
 
 =cut
 
 sub arrayref_to_temp_file {
     my $self = shift;
     my ($arrayref) = @_;
+
+    local $\ = '';
 
     my $file = File::Temp->new();
     print $file map { "$_\n" } @$arrayref;
@@ -57,54 +66,71 @@ sub arrayref_to_temp_file {
     return $file;
 }
 
-sub file_to_feature_table {
-    my $self = shift;
-    my ($file) = @_;
+=head3 file_to_temp_table
 
-    my $temp = Sybase::TempTable->create( $self->[$_DB_HANDLE],
-        'feat_name VARCHAR(25) PRIMARY KEY' );
+    my $temp_table = $utils->file_to_temp_table(
+        $column_name,
+        $definition,
+        $filename
+    );
+
+Create a temporary table with one column specified by column_name and
+definition and populate it via BCP. Three shortcut methods also provided:
+
+=over
+
+=item my $temp_table = $utils->file_to_feature_table( $filename );
+
+=item my $temp_table = $utils->file_to_pub_locus_table( $filename );
+
+=item my $temp_table = $utils->file_to_assembly_table( $filename );
+
+=back
+
+=cut
+
+sub file_to_temp_table {
+    my $self = shift;
+    my ( $column, $type, $filename ) = @_;
+
+    my $temp =
+      Sybase::TempTable->create( $self->dbh, "$column $type PRIMARY KEY" );
     my $command =
       sprintf( 'bcp %s in %s -c -r "\n" -t "\t" -U access -P access',
-        $temp->name, $file );
+        $temp->name, $filename );
     system($command);
 
     return $temp;
+}
+
+sub file_to_feature_table {
+    shift->file_to_temp_table( feat_name => 'VARCHAR(25)', @_ );
 }
 
 sub file_to_pub_locus_table {
-    my $self = shift;
-    my ($file) = @_;
-    
-    my $temp = Sybase::TempTable->create( $self->[$_DB_HANDLE], 
-        'pub_locus VARCHAR(25) PRIMARY KEY' );
-    my $command = 
-        sprintf( 'bcp %s in %s -c -r "\n" -t "\t" -U access -P access', 
-        $temp->name, $file );
-    system($command);
-    
-    return $temp;
+    shift->file_to_temp_table( pub_locus => 'VARCHAR(25)', @_ );
 }
 
 sub file_to_assembly_table {
-    my $self = shift;
-    my ($file) = @_;
-    
-    my $temp = Sybase::TempTable->create( $self->[$_DB_HANDLE], 
-        'asmbl_id INTEGER PRIMARY KEY' );
-    my $command = 
-        sprintf( 'bcp %s in %s -c -r "\n" -t "\t" -U access -P access', 
-        $temp->name, $file );
-    system($command);
-    
-    return $temp;
+    shift->file_to_temp_table( asmbl_id => 'INTEGER', @_ );
 }
+
+=head3 temp_table_to_hashref
+
+    my $hashref = $utils->temp_table_to_hashref( $temp_table );
+
+Dump a two-columned temporary table into a hash of arrays, with the keys of the
+hash being the entries in the first column and the arrays populated with the
+values of the second column.
+
+=cut
 
 sub temp_table_to_hashref {
     my $self = shift;
     my ($temp) = @_;
     my ( $key, $value );
 
-    my $sth = $self->[$_DB_HANDLE]->prepare_cached( 'SELECT * FROM ' . $temp->name );
+    my $sth = $self->dbh->prepare_cached( 'SELECT * FROM ' . $temp->name );
     $sth->execute();
     $sth->bind_columns( \( $key, $value ) );
 
@@ -145,8 +171,9 @@ sub feat_names_to_parents_temp_table {
     else               { die 'This method does not take a single feat_name' }
 
     if ($feat_arrayref) {
-        return $self->feat_name_small_arrayref_to_parents_temp_table($feat_arrayref)
-          if ( @$feat_arrayref <= $SMALL_ARRAY );
+        return $self->feat_name_small_arrayref_to_parents_temp_table(
+            $feat_arrayref)
+          if ( @$feat_arrayref <= $SMALL_ARRAY_THRESHOLD );
         $feat_tempfile = $self->arrayref_to_temp_file($feat_arrayref);
         $feat_filename = $feat_tempfile->filename;
     }
@@ -161,7 +188,7 @@ sub feat_name_small_arrayref_to_parents_temp_table {
     my $self = shift;
     my ($feat_names) = @_;
 
-    my $temp = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
+    my $temp = Sybase::TempTable->reserve( $self->dbh );
 
     my $query = q{
         SELECT child_feat AS input_feat, parent_feat AS feat_name
@@ -170,7 +197,7 @@ sub feat_name_small_arrayref_to_parents_temp_table {
         WHERE child_feat IN ( } . join( ', ', ('?') x @$feat_names ) . q{ )
     };
 
-    $self->[$_DB_HANDLE]->prepare_cached($query)->execute(@$feat_names);
+    $self->dbh->prepare_cached($query)->execute(@$feat_names);
 
     return $temp;
 }
@@ -179,8 +206,8 @@ sub feat_name_temp_table_to_parents_temp_table {
     my $self = shift;
     my ($temp1) = @_;
 
-    my $temp2 = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    $self->[$_DB_HANDLE]->prepare_cached(
+    my $temp2 = Sybase::TempTable->reserve( $self->dbh );
+    $self->dbh->prepare_cached(
         q{
             SELECT t.feat_name AS input_feat, l.parent_feat AS feat_name
             INTO } . $temp2->name . q{
@@ -203,14 +230,14 @@ FEAT_NAMES TO PUB LOCI
 =cut
 
 sub feat_names_to_pub_loci {
-    my $self = shift;
+    my $self       = shift;
     my $temp_table = $self->feat_names_to_pub_loci_temp_table(@_);
     return $self->temp_table_to_hashref($temp_table);
 }
 
 sub feat_names_to_pub_loci_temp_table {
     my $self = shift;
-    
+
     my $feat_arrayref;
     my $feat_tempfile;
     my $feat_filename;
@@ -227,8 +254,9 @@ sub feat_names_to_pub_loci_temp_table {
     else               { die 'This method does not take a single feat_name.' }
 
     if ($feat_arrayref) {
-        return $self->feat_name_small_arrayref_to_pub_loci_temp_table($feat_arrayref)
-          if ( @$feat_arrayref <= $SMALL_ARRAY );
+        return $self->feat_name_small_arrayref_to_pub_loci_temp_table(
+            $feat_arrayref)
+          if ( @$feat_arrayref <= $SMALL_ARRAY_THRESHOLD );
         $feat_tempfile = $self->arrayref_to_temp_file($feat_arrayref);
         $feat_filename = $feat_tempfile->filename;
     }
@@ -243,7 +271,7 @@ sub feat_name_small_arrayref_to_pub_loci_temp_table {
     my $self = shift;
     my ($feat_names) = @_;
 
-    my $temp = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
+    my $temp = Sybase::TempTable->reserve( $self->dbh );
 
     my $query = q{
         SELECT feat_name, pub_locus
@@ -252,7 +280,7 @@ sub feat_name_small_arrayref_to_pub_loci_temp_table {
         WHERE feat_name IN ( } . join( ', ', ('?') x @$feat_names ) . q{ )
     };
 
-    my $sth = $self->[$_DB_HANDLE]->prepare_cached($query);
+    my $sth = $self->dbh->prepare_cached($query);
     $sth->execute(@$feat_names);
 
     return $temp;
@@ -262,8 +290,8 @@ sub feat_name_temp_table_to_pub_loci_temp_table {
     my $self = shift;
     my ($temp1) = @_;
 
-    my $temp2 = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    $self->[$_DB_HANDLE]->prepare_cached(
+    my $temp2 = Sybase::TempTable->reserve( $self->dbh );
+    $self->dbh->prepare_cached(
         q{
             SELECT t.feat_name, i.pub_locus
             INTO } . $temp2->name . q{
@@ -280,14 +308,14 @@ sub feat_name_temp_table_to_pub_loci_temp_table {
 =cut
 
 sub pub_loci_to_feat_names {
-    my $self = shift;
+    my $self       = shift;
     my $temp_table = $self->pub_loci_to_feat_names_temp_table(@_);
     return $self->temp_table_to_hashref($temp_table);
 }
 
 sub pub_loci_to_feat_names_temp_table {
     my $self = shift;
-    
+
     my $pub_locus_arrayref;
     my $pub_locus_tempfile;
     my $pub_locus_filename;
@@ -304,42 +332,45 @@ sub pub_loci_to_feat_names_temp_table {
     else               { die 'This method does not take a single pub_locus.' }
 
     if ($pub_locus_arrayref) {
-        return $self->pub_loci_small_arrayref_to_feat_name_temp_table($pub_locus_arrayref)
-          if ( @$pub_locus_arrayref <= $SMALL_ARRAY );
+        return $self->pub_loci_small_arrayref_to_feat_name_temp_table(
+            $pub_locus_arrayref)
+          if ( @$pub_locus_arrayref <= $SMALL_ARRAY_THRESHOLD );
         $pub_locus_tempfile = $self->arrayref_to_temp_file($pub_locus_arrayref);
         $pub_locus_filename = $pub_locus_tempfile->filename;
     }
     if ($pub_locus_filename) {
-        $pub_locus_temptable = $self->file_to_pub_locus_table($pub_locus_filename);
+        $pub_locus_temptable =
+          $self->file_to_pub_locus_table($pub_locus_filename);
     }
 
-    return $self->pub_loci_temp_table_to_feat_name_temp_table($pub_locus_temptable);
+    return $self->pub_loci_temp_table_to_feat_name_temp_table(
+        $pub_locus_temptable);
 }
 
 sub pub_loci_small_arrayref_to_feat_name_temp_table {
     my $self = shift;
     my ($pub_loci) = @_;
-    
-    my $temp = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    
+
+    my $temp = Sybase::TempTable->reserve( $self->dbh );
+
     my $query = q{
         SELECT pub_locus, feat_name
         INTO } . $temp->name . q{
         FROM ident
         WHERE pub_locus IN ( } . join( ', ', ('?') x @$pub_loci ) . q{ ) 
     };
-    
-    $self->[$_DB_HANDLE]->prepare_cached($query)->execute(@$pub_loci);
-    
+
+    $self->dbh->prepare_cached($query)->execute(@$pub_loci);
+
     return $temp;
 }
 
 sub pub_loci_temp_table_to_feat_name_temp_table {
     my $self = shift;
     my ($temp1) = @_;
-    
-    my $temp2 = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    $self->[$_DB_HANDLE]->prepare_cached(
+
+    my $temp2 = Sybase::TempTable->reserve( $self->dbh );
+    $self->dbh->prepare_cached(
         q{
             SELECT t.pub_locus, i.feat_name
             INTO } . $temp2->name . q{
@@ -347,7 +378,7 @@ sub pub_loci_temp_table_to_feat_name_temp_table {
             WHERE t.pub_locus = i.pub_locus
         }
     )->execute();
-    
+
     return $temp2;
 }
 
@@ -356,14 +387,14 @@ sub pub_loci_temp_table_to_feat_name_temp_table {
 =cut
 
 sub feat_names_to_children {
-    my $self = shift;
+    my $self       = shift;
     my $temp_table = $self->feat_names_to_children_temp_table(@_);
     return $self->temp_table_to_hashref($temp_table);
 }
 
 sub feat_names_to_children_temp_table {
     my $self = shift;
-        
+
     my $feat_arrayref;
     my $feat_tempfile;
     my $feat_filename;
@@ -380,8 +411,9 @@ sub feat_names_to_children_temp_table {
     else               { die 'This method does not take a single feat_name.' }
 
     if ($feat_arrayref) {
-        return $self->feat_name_small_arrayref_to_children_temp_table($feat_arrayref)
-          if ( @$feat_arrayref <= $SMALL_ARRAY );
+        return $self->feat_name_small_arrayref_to_children_temp_table(
+            $feat_arrayref)
+          if ( @$feat_arrayref <= $SMALL_ARRAY_THRESHOLD );
         $feat_tempfile = $self->arrayref_to_temp_file($feat_arrayref);
         $feat_filename = $feat_tempfile->filename;
     }
@@ -396,7 +428,7 @@ sub feat_name_small_arrayref_to_children_temp_table {
     my $self = shift;
     my ($feat_names) = @_;
 
-    my $temp = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
+    my $temp = Sybase::TempTable->reserve( $self->dbh );
 
     my $query = q{
         SELECT parent_feat AS input_feat, child_feat AS feat_name
@@ -405,7 +437,7 @@ sub feat_name_small_arrayref_to_children_temp_table {
         WHERE parent_feat IN ( } . join( ', ', ('?') x @$feat_names ) . q{ )
     };
 
-    $self->[$_DB_HANDLE]->prepare_cached($query)->execute(@$feat_names);
+    $self->dbh->prepare_cached($query)->execute(@$feat_names);
 
     return $temp;
 }
@@ -414,8 +446,8 @@ sub feat_name_temp_table_to_children_temp_table {
     my $self = shift;
     my ($temp1) = @_;
 
-    my $temp2 = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    $self->[$_DB_HANDLE]->prepare_cached(
+    my $temp2 = Sybase::TempTable->reserve( $self->dbh );
+    $self->dbh->prepare_cached(
         q{
             SELECT t.feat_name AS input_feat, l.child_feat AS feat_name
             INTO } . $temp2->name . q{
@@ -432,14 +464,14 @@ sub feat_name_temp_table_to_children_temp_table {
 =cut
 
 sub assemblies_to_model_feat_names {
-    my $self = shift;
+    my $self       = shift;
     my $temp_table = $self->assemblies_to_model_feat_names_temp_table(@_);
     return $self->temp_table_to_hashref($temp_table);
 }
 
 sub assemblies_to_model_feat_names_temp_table {
     my $self = shift;
-        
+
     my $assemblies_arrayref;
     my $assemblies_tempfile;
     my $assemblies_filename;
@@ -456,29 +488,33 @@ sub assemblies_to_model_feat_names_temp_table {
     else               { die 'This method does not take a single asmbl_id.' }
 
     if ($assemblies_arrayref) {
-        return $self->assemblies_small_arrayref_to_model_feat_names_temp_table($assemblies_arrayref)
-          if ( @$assemblies_arrayref <= $SMALL_ARRAY );
-        $assemblies_tempfile = $self->arrayref_to_temp_file($assemblies_arrayref);
+        return $self->assemblies_small_arrayref_to_model_feat_names_temp_table(
+            $assemblies_arrayref)
+          if ( @$assemblies_arrayref <= $SMALL_ARRAY_THRESHOLD );
+        $assemblies_tempfile =
+          $self->arrayref_to_temp_file($assemblies_arrayref);
         $assemblies_filename = $assemblies_tempfile->filename;
     }
     if ($assemblies_filename) {
-        $assemblies_temptable = $self->file_to_assembly_table($assemblies_filename);
+        $assemblies_temptable =
+          $self->file_to_assembly_table($assemblies_filename);
     }
 
-    return $self->assemblies_temp_table_to_model_feat_names_temp_table($assemblies_temptable);
+    return $self->assemblies_temp_table_to_model_feat_names_temp_table(
+        $assemblies_temptable);
 }
 
-sub assemblies_small_arrayref_to_model_feat_names_temp_table{
+sub assemblies_small_arrayref_to_model_feat_names_temp_table {
     my $self = shift;
     my ($assemblies) = @_;
-    
-    my $temp = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    
+
+    my $temp = Sybase::TempTable->reserve( $self->dbh );
+
     my $exact_or_not = '=';
-    if($self->[$_EV_TYPE] eq '%'){
+    if ( $self->ev_type eq '%' ) {
         $exact_or_not = 'LIKE';
     }
-    
+
     my $query = q{
         SELECT a.asmbl_id, a.feat_name
         INTO } . $temp->name . q{
@@ -488,25 +524,25 @@ sub assemblies_small_arrayref_to_model_feat_names_temp_table{
         AND a.feat_type = 'model'
         AND a.asmbl_id IN ( } . join( ', ', ('?') x @$assemblies ) . q{ )
     };
-    
-    unshift(@$assemblies, $self->[$_EV_TYPE]);
-    
-    $self->[$_DB_HANDLE]->prepare_cached($query)->execute(@$assemblies);
-    
+
+    unshift( @$assemblies, $self->ev_type );
+
+    $self->dbh->prepare_cached($query)->execute(@$assemblies);
+
     return $temp;
 }
 
 sub assemblies_temp_table_to_model_feat_names_temp_table {
     my $self = shift;
     my ($temp1) = @_;
-    
+
     my $exact_or_not = '=';
-    if($self->[$_EV_TYPE] eq '%'){
+    if ( $self->ev_type =~ m/%/ ) {
         $exact_or_not = 'LIKE';
     }
-    
-    my $temp2 = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    $self->[$_DB_HANDLE]->prepare_cached(
+
+    my $temp2 = Sybase::TempTable->reserve( $self->dbh );
+    $self->dbh->prepare_cached(
         q{
             SELECT t.asmbl_id, a.feat_name
             INTO } . $temp2->name . q{
@@ -516,8 +552,8 @@ sub assemblies_temp_table_to_model_feat_names_temp_table {
             AND a.feat_name = p.feat_name
             AND p.ev_type } . $exact_or_not . q{ ?
         }
-    )->execute($self->[$_EV_TYPE]);
-    
+    )->execute( $self->ev_type );
+
     return $temp2;
 }
 
@@ -526,14 +562,14 @@ sub assemblies_temp_table_to_model_feat_names_temp_table {
 =cut
 
 sub feat_names_to_assemblies {
-    my $self = shift;
+    my $self       = shift;
     my $temp_table = $self->feat_names_to_assemblies_temp_table(@_);
     return $self->temp_table_to_hashref($temp_table);
 }
 
 sub feat_names_to_assemblies_temp_table {
     my $self = shift;
-        
+
     my $feat_arrayref;
     my $feat_tempfile;
     my $feat_filename;
@@ -550,8 +586,9 @@ sub feat_names_to_assemblies_temp_table {
     else               { die 'This method does not take a single feat_name.' }
 
     if ($feat_arrayref) {
-        return $self->feat_names_small_arrayref_to_assemblies_temp_table($feat_arrayref)
-          if ( @$feat_arrayref <= $SMALL_ARRAY );
+        return $self->feat_names_small_arrayref_to_assemblies_temp_table(
+            $feat_arrayref)
+          if ( @$feat_arrayref <= $SMALL_ARRAY_THRESHOLD );
         $feat_tempfile = $self->arrayref_to_temp_file($feat_arrayref);
         $feat_filename = $feat_tempfile->filename;
     }
@@ -559,15 +596,16 @@ sub feat_names_to_assemblies_temp_table {
         $feat_temptable = $self->file_to_feature_table($feat_filename);
     }
 
-    return $self->feat_names_temp_table_to_assemblies_temp_table($feat_temptable);
+    return $self->feat_names_temp_table_to_assemblies_temp_table(
+        $feat_temptable);
 }
 
-sub feat_names_small_arrayref_to_assemblies_temp_table{
+sub feat_names_small_arrayref_to_assemblies_temp_table {
     my $self = shift;
     my ($features) = @_;
-    
-    my $temp = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    
+
+    my $temp = Sybase::TempTable->reserve( $self->dbh );
+
     my $query = q{
         SELECT a.feat_name, a.asmbl_id
         INTO } . $temp->name . q{
@@ -576,16 +614,16 @@ sub feat_names_small_arrayref_to_assemblies_temp_table{
         AND c.is_public = 1
         AND a.feat_name IN ( } . join( ', ', ('?') x @$features ) . q{ )
     };
-    
-    $self->[$_DB_HANDLE]->prepare_cached($query)->execute(@$features);
+
+    $self->dbh->prepare_cached($query)->execute(@$features);
 }
 
 sub feat_names_temp_table_to_assemblies_temp_table {
     my $self = shift;
     my ($temp1) = @_;
-    
-    my $temp2 = Sybase::TempTable->reserve( $self->[$_DB_HANDLE] );
-    $self->[$_DB_HANDLE]->prepare_cached(
+
+    my $temp2 = Sybase::TempTable->reserve( $self->dbh );
+    $self->dbh->prepare_cached(
         q{
             SELECT t.feat_name, a.asmbl_id
             INTO } . $temp2->name . q{
@@ -595,71 +633,8 @@ sub feat_names_temp_table_to_assemblies_temp_table {
             AND c.is_public = 1
         }
     )->execute();
-    
+
     return $temp2;
-}
-
-{
-    my %type_hash = (
-        tu          => 'model',
-        exon        => 'model',
-        cds         => 'exon',
-        asmbl_id    => 'model',
-    );
-
-    sub convert_to_models {
-        my $self = shift;
-        my ( $arrayref, $type ) = @_;
-        my $hashref;
-        my @value_array;
-
-        if($type eq 'model'){
-            return $arrayref;
-        }
-        elsif($type eq 'tu'){
-            $hashref = $self->feat_names_to_children($arrayref);
-            $type = $type_hash{$type};
-        }
-        elsif($type eq 'exon' || $type eq 'cds'){
-            $hashref = $self->feat_names_to_parents($arrayref);
-            $type = $type_hash{$type};
-        }
-        elsif($type eq 'asmbl_id'){
-            $hashref = $self->assemblies_to_model_feat_names($arrayref);
-            $type = $type_hash{$type};
-        }
-        elsif($type eq 'pub_locus'){
-            $hashref = $self->pub_loci_to_feat_names($arrayref);
-            return $self->pub_loci_feat_names_to_model_feat_names($hashref);
-        }
-    
-        foreach ( values %$hashref ){ push(@value_array, @$_); }
-    
-        return $self->convert_to_models( \@value_array, $type );
-    }
-}
-
-#converts a list of feat_names that is potentially a mix of tu and model 
-#  feat_names into an arrayref just containing model feat_names
-sub pub_loci_feat_names_to_model_feat_names {
-    my $self = shift;
-    my ($hashref) = @_;
-    my $model_arrayref;
-    my $tu_arrayref;
-    
-    foreach my $pub_locus (keys %$hashref){
-        ($hashref->{$pub_locus}->[0] =~ m/\d+\.m\d+/)
-            ? push(@$model_arrayref, @{$hashref->{$pub_locus}})
-            : push(@$tu_arrayref, @{$hashref->{$pub_locus}});
-    }
-    
-    if( @$tu_arrayref > 0 ){
-        my $model_hashref;
-        $model_hashref = $self->feat_names_to_children($tu_arrayref);
-        foreach ( values %$model_hashref ){ push( @$model_arrayref, @$_ ); }
-    }
-    
-    return $model_arrayref;
 }
 
 1;
