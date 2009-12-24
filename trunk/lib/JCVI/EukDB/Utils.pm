@@ -207,14 +207,14 @@ sub feat_name_temp_table_to_parents_temp_table {
     my ($temp1) = @_;
 
     my $temp2 = Sybase::TempTable->reserve( $self->dbh );
-    $self->dbh->prepare_cached(
+    $self->dbh->do(
         q{
             SELECT t.feat_name AS input_feat, l.parent_feat AS feat_name
             INTO } . $temp2->name . q{
             FROM } . $temp1->name . q{ t, feat_link l
             WHERE t.feat_name = l.child_feat
         }
-    )->execute();
+    );
 
     return $temp2;
 }
@@ -280,8 +280,7 @@ sub feat_name_small_arrayref_to_pub_loci_temp_table {
         WHERE feat_name IN ( } . join( ', ', ('?') x @$feat_names ) . q{ )
     };
 
-    my $sth = $self->dbh->prepare_cached($query);
-    $sth->execute(@$feat_names);
+    $self->dbh->prepare_cached($query)->execute(@$feat_names);
 
     return $temp;
 }
@@ -291,14 +290,14 @@ sub feat_name_temp_table_to_pub_loci_temp_table {
     my ($temp1) = @_;
 
     my $temp2 = Sybase::TempTable->reserve( $self->dbh );
-    $self->dbh->prepare_cached(
+    $self->dbh->do(
         q{
             SELECT t.feat_name, i.pub_locus
             INTO } . $temp2->name . q{
             FROM } . $temp1->name . q{ t, ident i
             WHERE t.feat_name = i.feat_name
         }
-    )->execute();
+    );
 
     return $temp2;
 }
@@ -370,14 +369,14 @@ sub pub_loci_temp_table_to_feat_name_temp_table {
     my ($temp1) = @_;
 
     my $temp2 = Sybase::TempTable->reserve( $self->dbh );
-    $self->dbh->prepare_cached(
+    $self->dbh->do(
         q{
             SELECT t.pub_locus, i.feat_name
             INTO } . $temp2->name . q{
             FROM } . $temp1->name . q{ t, ident i
             WHERE t.pub_locus = i.pub_locus
         }
-    )->execute();
+    );
 
     return $temp2;
 }
@@ -447,14 +446,14 @@ sub feat_name_temp_table_to_children_temp_table {
     my ($temp1) = @_;
 
     my $temp2 = Sybase::TempTable->reserve( $self->dbh );
-    $self->dbh->prepare_cached(
+    $self->dbh->do(
         q{
             SELECT t.feat_name AS input_feat, l.child_feat AS feat_name
             INTO } . $temp2->name . q{
             FROM } . $temp1->name . q{ t, feat_link l
             WHERE t.feat_name = l.parent_feat
         }
-    )->execute();
+    );
 
     return $temp2;
 }
@@ -623,7 +622,7 @@ sub feat_names_temp_table_to_assemblies_temp_table {
     my ($temp1) = @_;
 
     my $temp2 = Sybase::TempTable->reserve( $self->dbh );
-    $self->dbh->prepare_cached(
+    $self->dbh->do(
         q{
             SELECT t.feat_name, a.asmbl_id
             INTO } . $temp2->name . q{
@@ -632,7 +631,7 @@ sub feat_names_temp_table_to_assemblies_temp_table {
             AND c.asmbl_id = a.asmbl_id
             AND c.is_public = 1
         }
-    )->execute();
+    );
 
     return $temp2;
 }
