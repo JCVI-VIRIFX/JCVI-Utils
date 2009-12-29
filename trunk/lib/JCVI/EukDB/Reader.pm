@@ -110,12 +110,18 @@ are no more genes to get, returns nothing.
 sub get_next_gene {
     my $self = shift;
     my $deck = $self->deck();
+    
+    # Populate the deck if necessary
+    if ( ( ! $deck ) || ( ! @$deck ) ) {
+        $self->get_next_batch() or return;
+        $deck = $self->deck();
+    }
 
-    # Shift off empty assemblies and restock deck if necessary
-    unless ( @{ $deck->[0][1] } ) { shift @$deck }
-    unless (@$deck) { $self->get_next_batch() or return }
+    # Shift off the next gene and shift off the assembly if it is done
+    my $gene = shift @{ $deck->[0][1] };
+    if ( ! @{ $deck->[0][1] }) { shift @$deck }
 
-    return shift( @{ $deck->[0][1] } );
+    return $gene;
 }
 
 =head1 get_next_assembly
@@ -131,9 +137,13 @@ sub get_next_assembly {
     my $self = shift;
     my $deck = $self->deck();
 
-    # Restock deck if necessary
-    unless (@$deck) { $self->get_next_batch() or return }
+    # Populate the deck if necessary
+    if ( ( ! $deck ) || ( ! @$deck ) ) {
+        $self->get_next_batch() or return;
+        $deck = $self->deck();
+    }
 
+    # Shift off the next assembly
     return shift(@$deck);
 }
 
