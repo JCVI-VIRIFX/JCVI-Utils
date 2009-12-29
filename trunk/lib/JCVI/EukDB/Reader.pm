@@ -172,7 +172,9 @@ sub get_next_gene {
     my $assembly = $dao->get_next_assembly();
 
 Gets the next assembly from the deck and restocks the deck of necessary. If
-there are no more assemblies to get, returns nothing.
+there are no more assemblies to get, returns nothing. The assembly returned is
+an arrayref; the first entry is the asmbl_id, the second is the list of genes
+and the third is a reference to the sequence of the assembly.
 
 =cut
 
@@ -689,7 +691,8 @@ sub models_temp_table_to_genes {
     my $assembly = <$dao>;
     my $assembly = $dao->iterator;
 
-This is an iterator that can be used with this class.
+This is an iterator that can be used with this class. It calls the
+get_next_gene or get_next_assembly methods.
 
 =cut
 
