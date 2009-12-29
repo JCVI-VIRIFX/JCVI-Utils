@@ -17,6 +17,7 @@ use strict;
 use warnings;
 
 use base 'Class::Accessor::Fast';
+
 # Accessors for how the class functions and how it selects genes
 __PACKAGE__->mk_ro_accessors(
     qw(
@@ -45,6 +46,8 @@ use Sybase::TempTable;
 
 use JCVI::Feature;
 use JCVI::Location;
+use JCVI::Annotation;
+use JCVI::Annotation::Item;
 
 =head1 NAME
 
@@ -128,12 +131,12 @@ sub new {
             }
         }
     );
-    
+
     {
         no strict 'refs';
-        $p{iterator_method} = \&{$p{iterator_method}};
+        $p{iterator_method} = \&{ $p{iterator_method} };
     }
-    
+
     return $class->SUPER::new( { %p, dbh => $dbh } );
 }
 
@@ -203,8 +206,8 @@ sub get_next_batch {
 
     # Get the table of models; function will return undef if we out
     my $assemblies_temp_table =
-          $self->prepare_next_batch_assemblies_temp_table(1)
-          or return;
+      $self->prepare_next_batch_assemblies_temp_table(1)
+      or return;
     my $models_temp_table =
       $self->assemblies_temp_table_to_models_temp_table($assemblies_temp_table);
     my $sequences =
@@ -547,44 +550,113 @@ sub feat_names_temp_table_to_features {
         { can  => ['name'] },
         { type => Params::Validate::HASHREF, default => {} }
     );
+    my %p = validate(
+        @p,
+        {
+            structural_annotation => {
+                default => 1,
+                type    => Params::Validate::SCALAR | Params::Validate::UNDEF
+            },
+            functional_annotation => {
+                default => 0,
+                type    => Params::Validate::SCALAR | Params::Validate::UNDEF
+            }
+        }
+    );
 
     my $temp_table_name = $temp_table->name;
 
     my $dbh = $self->dbh;
 
+    my @SELECT = qw( t.feat_name f.feat_type f.asmbl_id p.ev_type );
+    my @FROM   = ( "$temp_table_name t", 'asm_feature f', 'phys_ev p' );
+    my @WHERE  = ( 't.feat_name = f.feat_name', 't.feat_name *= p.feat_name' );
+    my @METHODS;
+
+    if ( $p{structural_annotation} ) {
+        push @SELECT, qw( f.end5 f.end3 );
+        push @METHODS, \&_structural_annotation;
+    }
+    if ( $p{functional_annotation} ) {
+        push @SELECT, qw( i.com_name i.pub_locus );
+        push @FROM,   'ident i';
+        push @WHERE,  't.feat_name *= i.feat_name';
+        push @METHODS, \&_functional_annotation;
+    }
+
     # Query out the structural annotation
-    my ( $feat_name, $asmbl_id, $feat_type, $end5, $end3, $ev_type );
-    my $sth = $dbh->prepare(
-        qq{
-            SELECT  f.feat_name, f.asmbl_id, f.feat_type, f.end5, f.end3, p.ev_type
-            FROM    $temp_table_name t, asm_feature f, phys_ev p
-            WHERE   t.feat_name = f.feat_name
-            AND     t.feat_name *= p.feat_name
-        }
-    );
+    my $query =
+        'SELECT '
+      . join( ', ',    @SELECT ) . "\n" . 'FROM '
+      . join( ', ',    @FROM ) . "\n" . 'WHERE '
+      . join( "\nAND ", @WHERE );
+
+    my $sth = $dbh->prepare($query);
     $sth->execute;
-    $sth->bind_columns(
-        \( $feat_name, $asmbl_id, $feat_type, $end5, $end3, $ev_type ) );
 
     my @features;
+    my %row;
+    $sth->bind_columns( \@row{ @{ $sth->{NAME} } } );
 
     # Create the features and their locations
     while ( $sth->fetch ) {
-        my $location = JCVI::Location->new_53( $asmbl_id, [ $end5, $end3 ] );
-
         my $feature = JCVI::Feature->new(
             {
-                id         => $feat_name,
-                type       => $feat_type,
-                provenance => $ev_type,
-                location   => $location
+                id         => $row{feat_name},
+                type       => $row{feat_type},
+                provenance => $row{ev_type},
             }
         );
+
+        foreach my $method (@METHODS) {
+            $self->$method( $feature, \%row );
+        }
 
         push @features, $feature;
     }
 
     return \@features;
+}
+
+sub _structural_annotation {
+    my $self = shift;
+    my ( $feature, $row ) = @_;
+
+    my $location =
+      JCVI::Location->new_53( $row->{asmbl_id}, [ @$row{qw( end5 end3 )} ] );
+    $feature->location($location);
+
+    return $location;
+}
+
+sub _functional_annotation {
+    my $self = shift;
+    my ( $feature, $row ) = @_;
+
+    my $com_name = JCVI::Annotation::Item->new(
+        {
+            type => 'com_name',
+            data => $row->{com_name},
+        }
+    );
+
+    my $pub_locus = JCVI::Annotation::Item->new(
+        {
+            type => 'pub_locus',
+            data => $row->{pub_locus},
+        }
+    );
+
+    my $annotation = JCVI::Annotation->new(
+        {
+            com_name  => [$com_name],
+            pub_locus => [$pub_locus]
+        }
+    );
+    
+    $feature->annotation($annotation);
+
+    return $annotation;
 }
 
 =head2 link_parent_children_features
@@ -615,7 +687,7 @@ sub link_parent_children_features {
 
     # Get the column names
     my $columns = $sth->{NAME};
-    
+
     # Determine which order the columns go in
     if ( ( $columns->[0] =~ m/parent/ ) || ( $columns->[1] =~ m/child/ ) ) {
         $sth->bind_columns( \( $parent_column, $child_column ) );
@@ -697,7 +769,7 @@ get_next_gene or get_next_assembly methods.
 =cut
 
 sub iterator {
-    my $self = shift;
+    my $self            = shift;
     my $iterator_method = $self->iterator_method;
     $self->$iterator_method(@_);
 }
