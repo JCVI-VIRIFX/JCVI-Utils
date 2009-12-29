@@ -17,13 +17,14 @@ use strict;
 use warnings;
 
 use base 'Class::Accessor::Fast';
+# Accessors for how the class functions and how it selects genes
 __PACKAGE__->mk_ro_accessors(
     qw(
       dbh
+      iterator_method
+      batch_size
 
       ev_type
-
-      batch_size
       )
 );
 __PACKAGE__->mk_accessors(
@@ -35,6 +36,8 @@ __PACKAGE__->mk_accessors(
       )
 );
 sub mutator_name_for { return "_set_$_[1]" }
+
+use overload '<>' => \&iterator, fallback => 1;
 
 use Carp;
 use Params::Validate;
@@ -49,11 +52,27 @@ JCVI::EukDB::Reader - reading DAO for eukaryotic databases
 
 =head1 SYNOPSIS
 
+    my $dao = JCVI::EukDB::Reader->new($dbh);
+    while (my $gene = <$dao>) {
+        ...
+    }
+
 =head1 DESCRIPTION
+
+This is a data access object for the legacy Eukaryotic annotation database. It
+will store the data as a JCVI::Feature object.
 
 =cut
 
 =head1 CLASS VARIABLES
+
+=head2 $DEFAULT_EV_TYPE
+
+Default evidence type
+
+=head2 $DEFAULT_BATCH_SIZE
+
+The reader selects genes in batches. This is the default batch size.
 
 =cut
 
@@ -88,9 +107,20 @@ sub new {
                 type    => Params::Validate::HASHREF,
                 regex   => qr/^[1-9]\d*$/,
                 default => $DEFAULT_BATCH_SIZE
+            },
+            iterator_method => {
+                type    => Params::Validate::SCALAR,
+                regex   => qr/^get_next_(gene|assembly)/,
+                default => 'get_next_gene',
             }
         }
     );
+    
+    {
+        no strict 'refs';
+        $p{iterator_method} = \&{$p{iterator_method}};
+    }
+    
     return $class->SUPER::new( { %p, dbh => $dbh } );
 }
 
@@ -98,7 +128,7 @@ sub new {
 
 =cut
 
-=head1 get_next_gene
+=head2 get_next_gene
 
     my $gene = $dao->get_next_gene();
 
@@ -124,7 +154,7 @@ sub get_next_gene {
     return $gene;
 }
 
-=head1 get_next_assembly
+=head2 get_next_assembly
 
     my $assembly = $dao->get_next_assembly();
 
@@ -147,7 +177,7 @@ sub get_next_assembly {
     return shift(@$deck);
 }
 
-=head1 get_next_batch
+=head2 get_next_batch
 
     my $batch_genes = $dao->get_next_batch();
 
@@ -186,7 +216,7 @@ sub get_next_batch {
     return $genes;
 }
 
-=head1 prepare_next_batch_assemblies_temp_table
+=head2 prepare_next_batch_assemblies_temp_table
 
     my $batch_temp_table = $dao->prepare_next_batch_assemblies_temp_table( $update_batch_index )
 
@@ -228,7 +258,7 @@ sub prepare_next_batch_assemblies_temp_table {
     return $batch_temp_table;
 }
 
-=head1 get_next_batch_assemblies_ranges
+=head2 get_next_batch_assemblies_ranges
 
     my ( $lower, $upper ) = $dao->get_next_batch_assemblies_ranges( $update_batch_index )
 
@@ -287,7 +317,7 @@ sub get_next_batch_assemblies_ranges {
     return ( $lower_assembly, $upper_assembly );
 }
 
-=head1 prepare_assemblies
+=head2 prepare_assemblies
 
     my $assemblies = $dao->prepare_assemblies();
 
@@ -299,7 +329,7 @@ parameters are curerntly set for the object and call the appropriate method.
 
 sub prepare_assemblies { shift->prepare_assemblies_from_database(@_) }
 
-=head1 prepare_assemblies_from_database
+=head2 prepare_assemblies_from_database
 
     my $assemblies = $dao->prepare_assemblies_from_database();
 
@@ -338,7 +368,7 @@ sub prepare_assemblies_from_database {
     return $self->assemblies;
 }
 
-=head1 assemblies_temp_table_to_models_temp_table
+=head2 assemblies_temp_table_to_models_temp_table
 
     my $models_temp_table = $dao->assemblies_temp_table_to_models_temp_table($assemblies_temp_table);
 
@@ -374,7 +404,7 @@ sub assemblies_temp_table_to_models_temp_table {
     return $models_temp_table;
 }
 
-=head1 assemblies_temp_table_to_sequences
+=head2 assemblies_temp_table_to_sequences
 
     my $sequences = $dao->assemblies_temp_table_to_sequences($assemblies_temp_table);
 
@@ -421,7 +451,7 @@ Get a hash of { $asmbl_id => $seq_ref } for the assemblies in the temp table.
     }
 }
 
-=head1 feat_names_temp_table_to_parents_temp_table
+=head2 feat_names_temp_table_to_parents_temp_table
 
     my $parents_temp_table = $dao->feat_names_temp_table_to_parents_temp_table($feat_names_temp_table);
 
@@ -449,7 +479,7 @@ sub feat_names_temp_table_to_parents_temp_table {
     return $temp2;
 }
 
-=head1 feat_names_temp_table_to_children_temp_table
+=head2 feat_names_temp_table_to_children_temp_table
 
     my $children_temp_table = $dao->feat_names_temp_table_to_children_temp_table($feat_names_temp_table);
 
@@ -477,7 +507,7 @@ sub feat_names_temp_table_to_children_temp_table {
     return $temp2;
 }
 
-=head1 feat_names_temp_table_to_features
+=head2 feat_names_temp_table_to_features
 
     my $features = $dao->feat_names_temp_table_to_features($feat_names_temp_table);
     my $features = $dao->feat_names_temp_table_to_features($feat_names_temp_table, \%options);
@@ -542,7 +572,7 @@ sub feat_names_temp_table_to_features {
     return \@features;
 }
 
-=head1 link_parent_children_features
+=head2 link_parent_children_features
 
     $dao->link_parent_children_features( $parents, $children, $linkage_table );
 
@@ -600,7 +630,7 @@ sub link_parent_children_features {
     return $parents;
 }
 
-=head1 models_temp_table_to_genes
+=head2 models_temp_table_to_genes
 
     my $genes = $dao->models_temp_table_to_genes( $models_temp_table );
 
@@ -636,6 +666,24 @@ sub models_temp_table_to_genes {
     $self->link_parent_children_features( $exons,  $CDSs,   $CDSs_temp_table );
 
     return $genes;
+}
+
+=head2 iterator
+
+    my $gene = <$dao>;
+    my $gene = $dao->iterator;
+    
+    my $assembly = <$dao>;
+    my $assembly = $dao->iterator;
+
+This is an iterator that can be used with this class.
+
+=cut
+
+sub iterator {
+    my $self = shift;
+    my $iterator_method = $self->iterator_method;
+    $self->$iterator_method(@_);
 }
 
 1;
