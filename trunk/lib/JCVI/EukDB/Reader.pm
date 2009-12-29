@@ -85,7 +85,20 @@ my $DEFAULT_BATCH_SIZE = 1000;
 
 =head2 new
 
-    my $reader = JCVI::EukDB::Reader->new( $dbh );
+    my $reader = JCVI::EukDB::Reader->new($dbh);
+    my $reader = JCVI::EukDB::Reader->new( $dbh, \%options );
+    my $reader = JCVI::EukDB::Reader->new(
+        $dbh,
+        {
+            ev_type         => $ev_type,
+
+            batch_size      => $batch_size,
+            iterator_method => $method_name
+        }
+    );
+
+The database handle is all this object really needs. The options are provided
+to alter how this class functions.
 
 =cut
 
@@ -132,7 +145,7 @@ sub new {
 
     my $gene = $dao->get_next_gene();
 
-Gets the next gene from the deck and restocks the deck of necessary. If there
+Gets the next gene from the deck and restocks the deck if necessary. If there
 are no more genes to get, returns nothing.
 
 =cut
