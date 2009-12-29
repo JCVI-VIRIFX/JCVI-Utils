@@ -110,16 +110,16 @@ are no more genes to get, returns nothing.
 sub get_next_gene {
     my $self = shift;
     my $deck = $self->deck();
-    
+
     # Populate the deck if necessary
-    if ( ( ! $deck ) || ( ! @$deck ) ) {
+    if ( ( !$deck ) || ( !@$deck ) ) {
         $self->get_next_batch() or return;
         $deck = $self->deck();
     }
 
     # Shift off the next gene and shift off the assembly if it is done
     my $gene = shift @{ $deck->[0][1] };
-    if ( ! @{ $deck->[0][1] }) { shift @$deck }
+    if ( !@{ $deck->[0][1] } ) { shift @$deck }
 
     return $gene;
 }
@@ -138,7 +138,7 @@ sub get_next_assembly {
     my $deck = $self->deck();
 
     # Populate the deck if necessary
-    if ( ( ! $deck ) || ( ! @$deck ) ) {
+    if ( ( !$deck ) || ( !@$deck ) ) {
         $self->get_next_batch() or return;
         $deck = $self->deck();
     }
@@ -149,69 +149,57 @@ sub get_next_assembly {
 
 =head1 get_next_batch
 
-    my $batch_TUs = $dao->get_next_batch();
+    my $batch_genes = $dao->get_next_batch();
 
 =cut
 
 sub get_next_batch {
     my $self = shift;
 
-    # Get the table of models; function will return undef if we are out
+    # Get the table of models; function will return undef if we out
     my $assemblies_temp_table =
-      $self->prepare_next_batch_assemblies_temp_table(1)
-      or return;
+          $self->prepare_next_batch_assemblies_temp_table(1)
+          or return;
     my $models_temp_table =
       $self->assemblies_temp_table_to_models_temp_table($assemblies_temp_table);
     my $sequences =
       $self->assemblies_temp_table_to_sequences($assemblies_temp_table);
 
-    # Creates table with two columns; child, feat_name
-    my $TUs_temp_table =
-      $self->feat_names_temp_table_to_parents_temp_table($models_temp_table);
+    my $genes = $self->models_temp_table_to_genes($models_temp_table);
 
-    # Creates table with two columns; parent, feat_name
-    my $exons_temp_table =
-      $self->feat_names_temp_table_to_children_temp_table($models_temp_table);
-    my $CDSs_temp_table =
-      $self->feat_names_temp_table_to_children_temp_table($exons_temp_table);
-
-# Expects ( $temp_table, \%options )
-# Fetching functional annotation can be enabled, and fetching structural can be disabled
-    my $TUs =
-      $self->feat_names_temp_table_to_features( $TUs_temp_table,
-        { annotation => 1 } );
-    my $models = $self->feat_names_temp_table_to_features($models_temp_table);
-    my $exons  = $self->feat_names_temp_table_to_features($exons_temp_table);
-    my $CDSs   = $self->feat_names_temp_table_to_features($CDSs_temp_table);
-
-# Expects ( $parents, $children, $table )
-# Ideally, this method would interrogate the rows of the table passed to determine linkage
-    $self->link_parent_children_features( $TUs,    $models, $TUs_temp_table );
-    $self->link_parent_children_features( $models, $exons,  $exons_temp_table );
-    $self->link_parent_children_features( $exons,  $CDSs,   $CDSs_temp_table );
-
-    # Sort/store the TUs on deck
+    # Sort/store the genes on deck
     my %assemblies;
-    foreach my $TU (@$TUs) {
-        push @{ $assemblies{ $TU->location->source } }, $TU;
+    foreach my $gene (@$genes) {
+        push @{ $assemblies{ $gene->location->source } }, $gene;
     }
     foreach my $assembly ( values %assemblies ) {
         @$assembly = sort { $a->location <=> $b->location } @$assembly;
     }
 
     # Store the deck as a hash to make it easier to get the next assembly/gene
-    # Each entry of @deck is [ $asmbl_id, $TUs ]
+    # Each entry of @deck is [ $asmbl_id, $genes, $seq_ref ]
     my @deck =
       map { [ $_, $assemblies{$_}, $sequences->{$_} ] }
       sort { $a <=> $b } keys %assemblies;
     $self->_set_deck( \@deck );
 
-    return $TUs;
+    return $genes;
 }
+
+=head1 prepare_next_batch_assemblies_temp_table
+
+    my $batch_temp_table = $dao->prepare_next_batch_assemblies_temp_table( $update_batch_index )
+
+This will get a temporary table containing the asmbl_ids of the assemblies in
+next batch. $update_batch_index tells it to update the iterator which states
+which batch we are on.
+
+=cut
 
 sub prepare_next_batch_assemblies_temp_table {
     my $self = shift;
 
+    # Get the lower/upper assembly
     my ( $lower_assembly, $upper_assembly ) =
       $self->get_next_batch_assemblies_ranges(@_);
 
@@ -220,9 +208,11 @@ sub prepare_next_batch_assemblies_temp_table {
     my $assemblies_temp_table      = $self->assemblies_temp_table;
     my $assemblies_temp_table_name = $assemblies_temp_table->name;
 
+    # Reserve a new temp table for the batch assemblies
     my $batch_temp_table      = Sybase::TempTable->reserve($dbh);
     my $batch_temp_table_name = $batch_temp_table->name;
 
+    # Select the subset of assemblies for this batch
     my $sth = $dbh->prepare_cached(
         qq{
             SELECT *
@@ -237,6 +227,14 @@ sub prepare_next_batch_assemblies_temp_table {
 
     return $batch_temp_table;
 }
+
+=head1 get_next_batch_assemblies_ranges
+
+    my ( $lower, $upper ) = $dao->get_next_batch_assemblies_ranges( $update_batch_index )
+
+This will get the lower and upper bound of the assemblies in the next batch.
+
+=cut
 
 sub get_next_batch_assemblies_ranges {
     my $self = shift;
@@ -289,7 +287,25 @@ sub get_next_batch_assemblies_ranges {
     return ( $lower_assembly, $upper_assembly );
 }
 
+=head1 prepare_assemblies
+
+    my $assemblies = $dao->prepare_assemblies();
+
+Get the list of assemblies and their counts. For now, just calls
+prepare_assemblies_from_database, but in the future, it should evaluate what
+parameters are curerntly set for the object and call the appropriate method.
+
+=cut
+
 sub prepare_assemblies { shift->prepare_assemblies_from_database(@_) }
+
+=head1 prepare_assemblies_from_database
+
+    my $assemblies = $dao->prepare_assemblies_from_database();
+
+Get the list of assemblies by performing a database query.
+
+=cut
 
 sub prepare_assemblies_from_database {
     my $self = shift;
@@ -300,14 +316,15 @@ sub prepare_assemblies_from_database {
 
     my $sth = $dbh->prepare(
         qq{
-            SELECT a.asmbl_id, COUNT(*) AS genes
-            INTO   $name
-            FROM   assembly a, clone_info c, asm_feature f, phys_ev p
-            WHERE  a.asmbl_id  = c.asmbl_id
-            AND    a.asmbl_id  = f.asmbl_id
-            AND    f.feat_type = 'model'
-            AND    f.feat_name = p.feat_name
-            AND    p.ev_type = ?
+            SELECT  a.asmbl_id, COUNT(*) AS genes
+            INTO    $name
+            FROM    assembly a, clone_info c, asm_feature f, phys_ev p
+            WHERE   c.is_public = 1
+            AND     a.asmbl_id  = c.asmbl_id
+            AND     a.asmbl_id  = f.asmbl_id
+            AND     f.feat_type = 'model'
+            AND     f.feat_name = p.feat_name
+            AND     p.ev_type = ?
             GROUP BY a.asmbl_id
             ORDER BY a.asmbl_id
         }
@@ -317,7 +334,18 @@ sub prepare_assemblies_from_database {
 
     $self->_set_assemblies_temp_table($temp);
     $self->_set_assemblies( $dbh->selectall_arrayref("SELECT * FROM $name") );
+
+    return $self->assemblies;
 }
+
+=head1 assemblies_temp_table_to_models_temp_table
+
+    my $models_temp_table = $dao->assemblies_temp_table_to_models_temp_table($assemblies_temp_table);
+
+Create a temporary table of the models on the assemblies in the provided
+temporary table.
+
+=cut
 
 sub assemblies_temp_table_to_models_temp_table {
     my $self = shift;
@@ -345,6 +373,14 @@ sub assemblies_temp_table_to_models_temp_table {
 
     return $models_temp_table;
 }
+
+=head1 assemblies_temp_table_to_sequences
+
+    my $sequences = $dao->assemblies_temp_table_to_sequences($assemblies_temp_table);
+
+Get a hash of { $asmbl_id => $seq_ref } for the assemblies in the temp table.
+
+=cut
 
 {
     my $MAX_ASSEMBLY_SIZE;
@@ -385,6 +421,15 @@ sub assemblies_temp_table_to_models_temp_table {
     }
 }
 
+=head1 feat_names_temp_table_to_parents_temp_table
+
+    my $parents_temp_table = $dao->feat_names_temp_table_to_parents_temp_table($feat_names_temp_table);
+
+Returns a temporary table containing the columns child and feat_name, where
+child is the current feat_name and feat_name is the parent's feat_name.
+
+=cut
+
 sub feat_names_temp_table_to_parents_temp_table {
     my $self = shift;
     my ($temp1) = @_;
@@ -403,6 +448,15 @@ sub feat_names_temp_table_to_parents_temp_table {
 
     return $temp2;
 }
+
+=head1 feat_names_temp_table_to_children_temp_table
+
+    my $children_temp_table = $dao->feat_names_temp_table_to_children_temp_table($feat_names_temp_table);
+
+Returns a temporary table containing the columns parent and feat_name, where
+parent is the current feat_name and feat_name is the child's feat_name.
+
+=cut
 
 sub feat_names_temp_table_to_children_temp_table {
     my $self = shift;
@@ -423,6 +477,24 @@ sub feat_names_temp_table_to_children_temp_table {
     return $temp2;
 }
 
+=head1 feat_names_temp_table_to_features
+
+    my $features = $dao->feat_names_temp_table_to_features($feat_names_temp_table);
+    my $features = $dao->feat_names_temp_table_to_features($feat_names_temp_table, \%options);
+    my $features = $dao->feat_names_temp_table_to_features(
+        $feat_names_temp_table,
+        {
+            structural_annotation => $bool, # Enable/disable pulling of structural annotation
+            functional_annotation => $bool, # Enable/disable pulling of functional annotation
+        }
+    );
+
+Returns features from the feat_names in the temporary table provided. Currently,
+it only pulls structural annotation, but eventually this will be modified to
+pull either. By default, it will only pull structural annotation.
+
+=cut
+
 sub feat_names_temp_table_to_features {
     my $self = shift;
     my ( $temp_table, @p ) = validate_pos(
@@ -435,6 +507,7 @@ sub feat_names_temp_table_to_features {
 
     my $dbh = $self->dbh;
 
+    # Query out the structural annotation
     my ( $feat_name, $asmbl_id, $feat_type, $end5, $end3, $ev_type );
     my $sth = $dbh->prepare(
         qq{
@@ -449,6 +522,8 @@ sub feat_names_temp_table_to_features {
         \( $feat_name, $asmbl_id, $feat_type, $end5, $end3, $ev_type ) );
 
     my @features;
+
+    # Create the features and their locations
     while ( $sth->fetch ) {
         my $location = JCVI::Location->new_53( $asmbl_id, [ $end5, $end3 ] );
 
@@ -460,12 +535,23 @@ sub feat_names_temp_table_to_features {
                 location   => $location
             }
         );
-        
+
         push @features, $feature;
     }
 
     return \@features;
 }
+
+=head1 link_parent_children_features
+
+    $dao->link_parent_children_features( $parents, $children, $linkage_table );
+
+Link parents and children using an arrayref of features provided by
+feat_names_temp_table_to_features and a linkage table provided by
+feat_names_temp_table_to_parents_temp_table or
+feat_names_temp_table_to_children_temp_table.
+
+=cut
 
 sub link_parent_children_features {
     my $self = shift;
@@ -482,8 +568,10 @@ sub link_parent_children_features {
 
     my ( $parent_column, $child_column );
 
+    # Get the column names
     my $columns = $sth->{NAME};
-
+    
+    # Determine which order the columns go in
     if ( ( $columns->[0] =~ m/parent/ ) || ( $columns->[1] =~ m/child/ ) ) {
         $sth->bind_columns( \( $parent_column, $child_column ) );
     }
@@ -494,20 +582,60 @@ sub link_parent_children_features {
         croak "Unable to use temp table $temp_table_name";
     }
 
+    # Turn the arrayrefs passed into hashes
     my %parents_hash  = map { $_->id => $_ } @$parents;
     my %children_hash = map { $_->id => $_ } @$children;
 
+    # Fetch each linkage row and link parents to children
     while ( $sth->fetch ) {
         my $parent = $parents_hash{$parent_column};
         my $child  = $children_hash{$child_column};
-        
-        next unless ($parent && $child);
-        
+
+        next unless ( $parent && $child );
+
         push @{ $parent->children }, $child;
         $child->parent($parent);
     }
 
     return $parents;
+}
+
+=head1 models_temp_table_to_genes
+
+    my $genes = $dao->models_temp_table_to_genes( $models_temp_table );
+
+Returns an arrayref of genes given a temporary table containing models.
+
+=cut
+
+sub models_temp_table_to_genes {
+    my $self = shift;
+    my ($models_temp_table) = validate_pos( @_, { can => ['name'] } );
+
+    # Creates table with two columns; child, feat_name
+    my $genes_temp_table =
+      $self->feat_names_temp_table_to_parents_temp_table($models_temp_table);
+
+    # Creates table with two columns; parent, feat_name
+    my $exons_temp_table =
+      $self->feat_names_temp_table_to_children_temp_table($models_temp_table);
+    my $CDSs_temp_table =
+      $self->feat_names_temp_table_to_children_temp_table($exons_temp_table);
+
+    # Generate the features from the prepared lists
+    my $genes =
+      $self->feat_names_temp_table_to_features( $genes_temp_table,
+        { functional_annotation => 1 } );
+    my $models = $self->feat_names_temp_table_to_features($models_temp_table);
+    my $exons  = $self->feat_names_temp_table_to_features($exons_temp_table);
+    my $CDSs   = $self->feat_names_temp_table_to_features($CDSs_temp_table);
+
+    # Link features
+    $self->link_parent_children_features( $genes,  $models, $genes_temp_table );
+    $self->link_parent_children_features( $models, $exons,  $exons_temp_table );
+    $self->link_parent_children_features( $exons,  $CDSs,   $CDSs_temp_table );
+
+    return $genes;
 }
 
 1;
