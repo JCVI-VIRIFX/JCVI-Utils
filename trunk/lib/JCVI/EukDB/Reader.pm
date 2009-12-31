@@ -49,6 +49,9 @@ use JCVI::Location;
 use JCVI::Annotation;
 use JCVI::Annotation::Item;
 
+use Module::Find;
+use base findsubmod ( __PACKAGE__ . '::Queries' );
+
 =head1 NAME
 
 JCVI::EukDB::Reader - reading DAO for eukaryotic databases
@@ -467,62 +470,6 @@ Get a hash of { $asmbl_id => $seq_ref } for the assemblies in the temp table.
 
         return \%sequences;
     }
-}
-
-=head2 feat_names_temp_table_to_parents_temp_table
-
-    my $parents_temp_table = $dao->feat_names_temp_table_to_parents_temp_table($feat_names_temp_table);
-
-Returns a temporary table containing the columns child and feat_name, where
-child is the current feat_name and feat_name is the parent's feat_name.
-
-=cut
-
-sub feat_names_temp_table_to_parents_temp_table {
-    my $self = shift;
-    my ($temp1) = @_;
-
-    my $dbh = $self->dbh;
-
-    my $temp2 = Sybase::TempTable->reserve($dbh);
-    $dbh->do(
-        q{
-            SELECT t.feat_name AS child, l.parent_feat AS feat_name
-            INTO } . $temp2->name . q{
-            FROM } . $temp1->name . q{ t, feat_link l
-            WHERE t.feat_name = l.child_feat
-        }
-    );
-
-    return $temp2;
-}
-
-=head2 feat_names_temp_table_to_children_temp_table
-
-    my $children_temp_table = $dao->feat_names_temp_table_to_children_temp_table($feat_names_temp_table);
-
-Returns a temporary table containing the columns parent and feat_name, where
-parent is the current feat_name and feat_name is the child's feat_name.
-
-=cut
-
-sub feat_names_temp_table_to_children_temp_table {
-    my $self = shift;
-    my ($temp1) = @_;
-
-    my $dbh = $self->dbh;
-
-    my $temp2 = Sybase::TempTable->reserve($dbh);
-    $dbh->do(
-        q{
-            SELECT t.feat_name AS parent, l.child_feat AS feat_name
-            INTO } . $temp2->name . q{
-            FROM } . $temp1->name . q{ t, feat_link l
-            WHERE t.feat_name = l.parent_feat
-        }
-    );
-
-    return $temp2;
 }
 
 =head2 feat_names_temp_table_to_features
