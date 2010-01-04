@@ -39,7 +39,6 @@ __PACKAGE__->mk_accessors(
 sub mutator_name_for { return "_set_$_[1]" }
 
 use overload '<>' => \&iterator, fallback => 1;
-
 use Carp;
 use Params::Validate;
 use Sybase::TempTable;
@@ -50,7 +49,7 @@ use JCVI::Annotation;
 use JCVI::Annotation::Item;
 
 use Module::Find;
-use base findsubmod ( __PACKAGE__ . '::Queries' );
+use base findsubmod( __PACKAGE__ . '::Queries' );
 
 =head1 NAME
 
@@ -521,21 +520,22 @@ sub feat_names_temp_table_to_features {
     my @METHODS;
 
     if ( $p{structural_annotation} ) {
-        push @SELECT, qw( f.end5 f.end3 );
+        push @SELECT,  qw( f.end5 f.end3 );
         push @METHODS, \&_structural_annotation;
     }
     if ( $p{functional_annotation} ) {
-        push @SELECT, qw( i.com_name i.pub_locus );
-        push @FROM,   'ident i';
-        push @WHERE,  't.feat_name *= i.feat_name';
+        push @SELECT,  qw( i.com_name i.pub_locus );
+        push @FROM,    'ident i';
+        push @WHERE,   't.feat_name *= i.feat_name';
         push @METHODS, \&_functional_annotation;
     }
 
     # Query out the structural annotation
     my $query =
         'SELECT '
-      . join( ', ',    @SELECT ) . "\n" . 'FROM '
-      . join( ', ',    @FROM ) . "\n" . 'WHERE '
+      . join( ', ', @SELECT ) . "\n" . 'FROM '
+      . join( ', ', @FROM ) . "\n"
+      . 'WHERE '
       . join( "\nAND ", @WHERE );
 
     my $sth = $dbh->prepare($query);
@@ -600,7 +600,7 @@ sub _functional_annotation {
             pub_locus => [$pub_locus]
         }
     );
-    
+
     $feature->annotation($annotation);
 
     return $annotation;
@@ -695,9 +695,11 @@ sub models_temp_table_to_genes {
     my $CDSs   = $self->feat_names_temp_table_to_features($CDSs_temp_table);
 
     # Link features
-    $self->link_parent_children_features( $genes,  $models, $genes_temp_table );
-    $self->link_parent_children_features( $models, $exons,  $exons_temp_table );
-    $self->link_parent_children_features( $exons,  $CDSs,   $CDSs_temp_table );
+    my ( $unlinked_genes, $unlinked_models ) =
+      $self->link_parent_children_features( $genes, $models,
+        $genes_temp_table );
+    $self->link_parent_children_features( $models, $exons, $exons_temp_table );
+    $self->link_parent_children_features( $exons,  $CDSs,  $CDSs_temp_table );
 
     return $genes;
 }
