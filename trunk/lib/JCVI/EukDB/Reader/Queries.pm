@@ -131,11 +131,20 @@ sub _make_query {
       _handle_additional_clauses_and_tables( $addl_clauses, $linkage_table );
     my ( $addl_from, $addl_where ) = @$addl_statement_pieces;
 
+    my $type1_to_type2 = sub {
+        my $self = shift;
+
+        my $temp_table = $self->to_temp_table(@_);
+        return JCVI::EukDB::Utils->temp_table_to_hashref($temp_table);
+    };
+
+    *{"${caller}::${input_plural}_to_${output_plural}"} = \&$type1_to_type2;
+
     my $tt2tt_name =
       "${input_plural}_temp_table_to_${output_plural}_temp_table";
     my $tt2tt_short = "${input_plural}_tt2${output_plural}_tt";
 
-    my $tt2tt       = sub {
+    my $tt2tt = sub {
         my $self = shift;
         my ($temp1) = validate_pos( @_, { can => ['name'] } );
 
