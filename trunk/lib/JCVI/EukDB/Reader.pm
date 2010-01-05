@@ -139,14 +139,6 @@ sub new {
         $p{iterator_method} = \&{ $p{iterator_method} };
     }
 
-    # Set max length
-    $dbh->{LongReadLen} = $dbh->selectrow_array(
-        q{
-            SELECT MAX(length)
-            FROM clone_info
-        }
-    );
-
     return $class->SUPER::new( { %p, dbh => $dbh } );
 }
 
@@ -440,30 +432,51 @@ Get a hash of { $asmbl_id => $seq_ref } for the assemblies in the temp table.
 
 =cut
 
-sub assemblies_temp_table_to_sequences {
-    my $self = shift;
-    my ($assemblies_temp_table) = validate_pos( @_, { can => ['name'] } );
+{
+    my $MAX_ASSEMBLY_SIZE;
 
-    my $assembly_temp_table_name = $assemblies_temp_table->name;
+    sub assemblies_temp_table_to_sequences {
+        my $self = shift;
+        my ($assemblies_temp_table) = validate_pos( @_, { can => ['name'] } );
 
-    my %sequences;
-    my ( $asmbl_id, $sequence );
+        my $assembly_temp_table_name = $assemblies_temp_table->name;
 
-    my $sth = $self->dbh->prepare(
-        qq{
+        my $dbh = $self->dbh;
+
+        # Fetch the max assembly size
+        unless ( defined $MAX_ASSEMBLY_SIZE ) {
+            $MAX_ASSEMBLY_SIZE = $dbh->selectrow_array(
+                q{
+                    SELECT MAX(length)
+                    FROM clone_info
+                }
+            );
+        }
+
+        # Set the database handle's LongReadLen property
+        unless ( $dbh->{LongReadLen} == $MAX_ASSEMBLY_SIZE ) {
+            $dbh->{LongReadLen} = $MAX_ASSEMBLY_SIZE;
+        }
+
+        my %sequences;
+        my ( $asmbl_id, $sequence );
+
+        my $sth = $dbh->prepare(
+            qq{
                 SELECT a.asmbl_id, a.sequence
                 FROM   $assembly_temp_table_name t, assembly a
                 WHERE  t.asmbl_id = a.asmbl_id
             }
-    );
-    $sth->execute();
-    $sth->bind_columns( \( $asmbl_id, $sequence ) );
+        );
+        $sth->execute();
+        $sth->bind_columns( \( $asmbl_id, $sequence ) );
 
-    while ( $sth->fetch() ) {
-        $sequences{$asmbl_id} = \"$sequence";
+        while ( $sth->fetch() ) {
+            $sequences{$asmbl_id} = \"$sequence";
+        }
+
+        return \%sequences;
     }
-
-    return \%sequences;
 }
 
 =head2 feat_names_temp_table_to_features
@@ -634,7 +647,9 @@ sub link_parent_children_features {
     if ( ( $columns->[0] =~ m/parent/ ) || ( $columns->[1] =~ m/child/ ) ) {
         $sth->bind_columns( \( $parent_column, $child_column ) );
     }
-    elsif ( ( $columns->[1] =~ m/parent/ ) || ( $columns->[0] =~ m/child/ ) ) {
+    elsif (( $columns->[1] =~ m/parent/ )
+        || ( $columns->[0] =~ m/child/ ) )
+    {
         $sth->bind_columns( \( $child_column, $parent_column ) );
     }
     else {
