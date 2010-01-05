@@ -16,6 +16,7 @@ package JCVI::EukDB::Reader::Queries;
 use strict;
 use warnings;
 
+use Carp;
 use Params::Validate;
 
 use Sybase::TempTable;
@@ -27,6 +28,7 @@ JCVI::EukDB::Reader::Queries - generate query methods
 =head1 SYNOPSIS
 
     use JCVI::Queries;
+    JCVI::Queries->make_queries( [ $input, $output, $linkage ] );
     JCVI::Queries->make_queries( [ $input, $output, $linkage, $addl_clauses ] );
     JCVI::Queries->make_queries( \@query1_options, \@query2_options, ... );
 
@@ -45,12 +47,89 @@ particular query, and autogenerates the query methods for you.
 
 =cut
 
-=head1 make_queries
+=head2 make_queries
+
+    JCVI::Queries->make_queries( [ $input, $output, $linkage ] );
+    JCVI::Queries->make_queries( [ $input, $output, $linkage, $addl_clauses ] );
+    JCVI::Queries->make_queries( \@query1_options, \@query2_options, ... );
+
+    JCVI::Queries->make_queries(
+        [
+            {
+                name   => $input_name,  # column name to select
+                as     => $input_as,    # how it is output
+                plural => $input_plural # plural to use in query name
+            },
+            {
+                name   => $output_name,
+                as     => $output_as,
+                plural => $output_plural
+            },
+            {
+                table  => $linkage_table,  # table we are linking through
+                column => $linkage_column, # we are joining input field to 
+            }
+        ]
+    );
 
 Takes the input type (i.e. feat_name), output type (i.e. parent), linkage or 
 conversion table (i.e. feat_link or asm_feature), and optional additional 
-clauses to customize the operation of the query.  The additional clauses 
-should be a hashref structured in the following way:
+clauses to customize the operation of the query.
+
+The input, output and linkage can either be scalars or hashrefs; if they are
+scalars, then input/output->{name} takes on the value of the scalar passed and
+linkage->{table} takes on the value of the linkage scalar. If they are passed
+as hashrefs, the name/table values must be passed in.
+
+The "as" parameter is how the field is output. For instance, suppose we are
+linking features to their parents. The query links through the feat_link table:
+
+    SELECT t.feat_name, l.parent_feat
+    INTO   new_temp_table
+    FROM   temp_table t, feat_link l
+    WHERE  t.feat_name = l.child_feat
+
+We want this query to work recursively, but that won't happen because the
+column feat_name in the new temp table is still the old feat_name. What we want
+to happen is:
+
+    SELECT t.feat_name AS child, l.parent_feat AS feat_name
+
+The "as" property is what defines how the field is output.
+
+    JCVI::Queries->make_queries(
+        [
+            { name => 'feat_name',   as => 'child' },
+            { name => 'parent_feat', as => 'feat_name' }
+            ...
+        ]
+    );
+
+The "as" property defaults to the same as the "name" property.
+
+The "plural" property is what is used to name the function. By default, it is
+the "name" property with the letter "s" appended. The above query, without a
+"name" parameter would be named
+feat_names_temp_table_to_parent_feats_temp_table. We might want the query just
+have "parents" instead of "parent_feats", and so we would specify the
+"plural" property. Similarly, a query selecting pub_locus from the ident table
+should be have "pub_loci" in the name instead of "pub_locuss".
+
+In the above query, "feat_link" is the linkage->{table} property. The "column"
+property specifies what column the temp table is being joined against. By
+default, this is the same as input->{name}, however, in this case, the linkage
+table column name is "child_feat". Thus, the full make_queries call would look
+like:
+
+    JCVI::Queries->make_queries(
+        [
+            { name => 'feat_name',   as => 'child' },
+            { name => 'parent_feat', as => 'feat_name', plural => 'parents' },
+            { table => 'feat_link', column => 'child_feat' }
+        ]
+    ); 
+
+The additional clauses should be a hashref structured in the following way:
 
     #tables stores any additional tables for the query beyond the linkage 
     #  table, and clauses stores additional parts of the WHERE clause beyond 
@@ -115,6 +194,10 @@ sub _make_query {
     $input   = { name  => $input }   unless ( ref($input) );
     $output  = { name  => $output }  unless ( ref($output) );
     $linkage = { table => $linkage } unless ( ref($linkage) );
+
+    croak 'Input column name must be provided'  unless ( $input->{name} );
+    croak 'Output column name must be provided' unless ( $output->{name} );
+    croak 'Linkage table must be provided'      unless ( $linkage->{table} );
 
     my $input_name   = $input->{name};
     my $input_as     = $input->{as} || $input->{name};
@@ -254,6 +337,7 @@ sub _assemble_clauses {
     my $assembled_clauses = "";
 
     foreach my $clause ( @{$clause_arrayref} ) {
+
         #guard against any unwanted SQL statements by eliminating spaces
         map $clause->{$_} =~ s/\s//g, keys %$clause;
 
