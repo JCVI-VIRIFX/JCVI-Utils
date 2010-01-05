@@ -197,14 +197,18 @@ sub _make_query {
         { type => Params::Validate::HASHREF, optional => 1 }
     );
 
+    # Make input/output/linkage hashrefs if they are scalars
     $input   = { name  => $input }   unless ( ref($input) );
     $output  = { name  => $output }  unless ( ref($output) );
     $linkage = { table => $linkage } unless ( ref($linkage) );
 
+    # Verify that name/table is present in input/output/linkage
     croak 'Input column name must be provided'  unless ( $input->{name} );
     croak 'Output column name must be provided' unless ( $output->{name} );
     croak 'Linkage table must be provided'      unless ( $linkage->{table} );
 
+
+    # Get parameters and their default values
     my $input_name   = $input->{name};
     my $input_as     = $input->{as} || $input->{name};
     my $input_plural = $input->{plural} || "$input->{name}s";
@@ -229,6 +233,7 @@ sub _make_query {
 
     *{"${caller}::${input_plural}_to_${output_plural}"} = \&$type1_to_type2;
 
+    # Temp table to temp table section; define method names, method, and inject
     my $tt2tt_name =
       "${input_plural}_temp_table_to_${output_plural}_temp_table";
     my $tt2tt_short = "${input_plural}_tt2${output_plural}_tt";
@@ -263,6 +268,7 @@ sub _make_query {
     *{"${caller}::$tt2tt_name"}  = \&$tt2tt;
     *{"${caller}::$tt2tt_short"} = \&$tt2tt;
 
+    # Arrayref to temp table section
     my $arrayref2tt_name =
       "${input_plural}_arrayref_to_${output_plural}_temp_table";
     my $arrayref2tt_short = "${input_plural}_arrayref2${output_plural}_tt";
