@@ -139,6 +139,14 @@ sub new {
         $p{iterator_method} = \&{ $p{iterator_method} };
     }
 
+    # Set max length
+    $dbh->{LongReadLen} = $dbh->selectrow_array(
+        q{
+            SELECT MAX(length)
+            FROM clone_info
+        }
+    );
+
     return $class->SUPER::new( { %p, dbh => $dbh } );
 }
 
@@ -432,43 +440,30 @@ Get a hash of { $asmbl_id => $seq_ref } for the assemblies in the temp table.
 
 =cut
 
-{
-    my $MAX_ASSEMBLY_SIZE;
+sub assemblies_temp_table_to_sequences {
+    my $self = shift;
+    my ($assemblies_temp_table) = validate_pos( @_, { can => ['name'] } );
 
-    sub assemblies_temp_table_to_sequences {
-        my $self = shift;
-        my ($assemblies_temp_table) = validate_pos( @_, { can => ['name'] } );
+    my $assembly_temp_table_name = $assemblies_temp_table->name;
 
-        my $assembly_temp_table_name = $assemblies_temp_table->name;
+    my %sequences;
+    my ( $asmbl_id, $sequence );
 
-        my $dbh = $self->dbh;
-
-        unless ($MAX_ASSEMBLY_SIZE) {
-            $MAX_ASSEMBLY_SIZE =
-              $dbh->selectrow_array('SELECT MAX(length) FROM clone_info');
-        }
-
-        $dbh->do("SET TEXTSIZE $MAX_ASSEMBLY_SIZE");
-
-        my %sequences;
-        my ( $asmbl_id, $sequence );
-
-        my $sth = $dbh->prepare(
-            qq{
+    my $sth = $self->dbh->prepare(
+        qq{
                 SELECT a.asmbl_id, a.sequence
                 FROM   $assembly_temp_table_name t, assembly a
                 WHERE  t.asmbl_id = a.asmbl_id
             }
-        );
-        $sth->execute();
-        $sth->bind_columns( \( $asmbl_id, $sequence ) );
+    );
+    $sth->execute();
+    $sth->bind_columns( \( $asmbl_id, $sequence ) );
 
-        while ( $sth->fetch() ) {
-            $sequences{$asmbl_id} = \"$sequence";
-        }
-
-        return \%sequences;
+    while ( $sth->fetch() ) {
+        $sequences{$asmbl_id} = \"$sequence";
     }
+
+    return \%sequences;
 }
 
 =head2 feat_names_temp_table_to_features
