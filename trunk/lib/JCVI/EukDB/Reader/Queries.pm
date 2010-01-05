@@ -88,8 +88,9 @@ scalars, then input/output->{name} takes on the value of the scalar passed and
 linkage->{table} takes on the value of the linkage scalar. If they are passed
 as hashrefs, the name/table values must be passed in.
 
-The "as" parameter is how the field is output. For instance, suppose we are
-linking features to their parents. The query links through the feat_link table:
+The "as" parameter is how the field is output and defaults to the same as the
+"name" property. For instance, suppose we are linking features to their
+parents. The query links through the feat_link table:
 
     SELECT t.feat_name, l.parent_feat
     INTO   new_temp_table
@@ -111,8 +112,6 @@ The "as" property is what defines how the field is output.
             ...
         ]
     );
-
-The "as" property defaults to the same as the "name" property.
 
 The "plural" property is what is used to name the function. By default, it is
 the "name" property with the letter "s" appended. The above query, without a
