@@ -104,8 +104,8 @@ sub _make_query {
     my $class  = shift;
     my $caller = shift;
 
-#addl_clauses should be an arrayref containing two hashrefs.  The first should
-#  be
+  #addl_clauses should be an arrayref containing two hashrefs.  The first should
+  #  be
     my ( $input, $output, $linkage, $addl_clauses ) = validate_pos(
         @_,
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
@@ -133,7 +133,10 @@ sub _make_query {
       _handle_additional_clauses_and_tables( $addl_clauses, $linkage_table );
     my ( $addl_from, $addl_where ) = @$addl_statement_pieces;
 
-    my $tt2tt = sub {
+    my $tt2tt_name =
+      "${input_plural}_temp_table_to_${output_plural}_temp_table";
+    my $tt2tt_short = "${input_plural}_tt2${output_plural}_tt";
+    my $tt2tt       = sub {
         my $self = shift;
         my ($temp1) = validate_pos( @_, { can => ['name'] } );
 
@@ -160,9 +163,12 @@ sub _make_query {
         return $temp2;
     };
 
-    *{"${caller}::${input_plural}_tt2${output_plural}_tt"} = \&$tt2tt;
-    *{"${caller}::${input_plural}_temp_table_to_${output_plural}_temp_table"}
-      = \&$tt2tt;
+    *{"${caller}::$tt2tt_name"}  = \&$tt2tt;
+    *{"${caller}::$tt2tt_short"} = \&$tt2tt;
+
+    my $arrayref2tt_name =
+      "${input_plural}_arrayref_to_${output_plural}_temp_table";
+    my $arrayref2tt_short = "${input_plural}_arrayref2${output_plural}_tt";
 
     my $arrayref2tt = sub {
         my $self = shift;
@@ -190,10 +196,8 @@ sub _make_query {
         return $temp;
     };
 
-    *{"${caller}::${input_plural}_arrayref2${output_plural}_tt"} =
-      \&$arrayref2tt;
-    *{"${caller}::${input_plural}_arrayref_to_${output_plural}_temp_table"} =
-      \&$arrayref2tt;
+    *{"${caller}::$arrayref2tt_name"}  = \&$arrayref2tt;
+    *{"${caller}::$arrayref2tt_short"} = \&$arrayref2tt;
 }
 
 ##############################################################################
@@ -254,7 +258,7 @@ sub _assemble_clauses {
             logcroak("Unknown comparator for additional clause.")
               unless ( $comp =~ m/^=$|^!=$|^<=$|^>=$|^LIKE$/ );
         }
-        
+
         #check the validity of the linkers
         unless ( $link = $clause->{link} ) {
             $link = 'AND';
@@ -267,15 +271,12 @@ sub _assemble_clauses {
         #check to make sure valid table names are used and get their aliases
         my $l_alias = $tables_to_aliases->{ $clause->{l_table} };
         my $r_alias = $tables_to_aliases->{ $clause->{r_table} };
-        
+
         my $addl_clause =
           "\n$link $l_alias." . $clause->{l_col} . " $comp $r_alias.";
         if ( $clause->{r_col} && $clause->{r_val} ) {
             $addl_clause .=
-                $addl_clause
-              . $clause->{r_col}
-              . $addl_clause
-              . $clause->{r_val};
+              $addl_clause . $clause->{r_col} . $addl_clause . $clause->{r_val};
         }
         else {
             $addl_clause .=
