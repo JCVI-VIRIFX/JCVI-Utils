@@ -207,7 +207,6 @@ sub _make_query {
     croak 'Output column name must be provided' unless ( $output->{name} );
     croak 'Linkage table must be provided'      unless ( $linkage->{table} );
 
-
     # Get parameters and their default values
     my $input_name   = $input->{name};
     my $input_as     = $input->{as} || $input->{name};
@@ -224,16 +223,7 @@ sub _make_query {
       _handle_additional_clauses_and_tables( $addl_clauses, $linkage_table );
     my ( $addl_from, $addl_where ) = @$addl_statement_pieces;
 
-    my $type1_to_type2 = sub {
-        my $self = shift;
-
-        my $temp_table = $self->to_temp_table(@_);
-        return JCVI::EukDB::Utils->temp_table_to_hashref($temp_table);
-    };
-
-    *{"${caller}::${input_plural}_to_${output_plural}"} = \&$type1_to_type2;
-
-    # Temp table to temp table section; define method names, method, and inject
+    #subroutine for converting between temporary tables
     my $tt2tt_name =
       "${input_plural}_temp_table_to_${output_plural}_temp_table";
     my $tt2tt_short = "${input_plural}_tt2${output_plural}_tt";
@@ -268,7 +258,8 @@ sub _make_query {
     *{"${caller}::$tt2tt_name"}  = \&$tt2tt;
     *{"${caller}::$tt2tt_short"} = \&$tt2tt;
 
-    # Arrayref to temp table section
+    #subroutine for converting from an array reference to the target temporary
+    #  table
     my $arrayref2tt_name =
       "${input_plural}_arrayref_to_${output_plural}_temp_table";
     my $arrayref2tt_short = "${input_plural}_arrayref2${output_plural}_tt";
@@ -301,6 +292,62 @@ sub _make_query {
 
     *{"${caller}::$arrayref2tt_name"}  = \&$arrayref2tt;
     *{"${caller}::$arrayref2tt_short"} = \&$arrayref2tt;
+
+    #subroutine for converting one type to a temporary table containing the
+    #  target type
+    my $t12t2tt_name  = "${input_plural}_to_${output_plural}_temp_table";
+    my $t12t2tt_short = "${input_plural}2${output_plural}_tt";
+
+    my $type1_to_type2_tt = sub {
+        my $self = shift;
+
+        my $arrayref;
+        my $tempfile;
+        my $filename;
+        my $temptable;
+
+        if ( @_ == 0 ) { Carp::croak 'No parameters passed.'; }
+        elsif ( my $ref = ref( $_[0] ) ) {
+            if    ( $ref eq 'ARRAY' )             { $arrayref  = $_[0] }
+            elsif ( $ref eq 'Sybase::TempTable' ) { $temptable = $_[0] }
+            else {
+                die qq{Do not know what to do with reference of type "$ref"};
+            }
+        }
+        elsif ( -f $_[0] ) { $filename = $_[0] }
+        else { die qq{This method does not take a single '$input'.} }
+
+        if ($arrayref) {
+            return $self->$arrayref2tt_name($arrayref)
+              if ( @$arrayref <= $self->small_array );
+            $tempfile = JCVI::EukDB::Utils->arrayref_to_temp_file($arrayref);
+            $filename = $tempfile->filename;
+        }
+        if ($filename) {
+            $temptable =
+              JCVI::EukDB::Utils->file_to_assembly_table($filename);
+        }
+
+        return $self->$tt2tt_name($temptable);
+    };
+
+    *{"${caller}::$t12t2tt_name"}  = \&$type1_to_type2_tt;
+    *{"${caller}::$t12t2tt_short"} = \&$type1_to_type2_tt;
+
+    #subroutine for converting one type to a hashref that maps to the target
+    #  type
+    my $t12t2_name  = "${input_plural}_to_${output_plural}";
+    my $t12t2_short = "${input_plural}2${output_plural}";
+
+    my $type1_to_type2 = sub {
+        my $self = shift;
+
+        my $temp_table = $self->$t12t2tt_name(@_);
+        return JCVI::EukDB::Utils->temp_table_to_hashref($temp_table);
+    };
+
+    *{"${caller}::$t12t2_name"}  = \&$type1_to_type2;
+    *{"${caller}::$t12t2_short"} = \&$type1_to_type2;
 }
 
 ##############################################################################
@@ -380,7 +427,10 @@ sub _assemble_clauses {
           "\n$link $l_alias." . $clause->{l_col} . " $comp $r_alias.";
         if ( $clause->{r_col} && $clause->{r_val} ) {
             $addl_clause .=
-              $addl_clause . $clause->{r_col} . $addl_clause . $clause->{r_val};
+                $addl_clause
+              . $clause->{r_col}
+              . $addl_clause
+              . $clause->{r_val};
         }
         else {
             $addl_clause .=
