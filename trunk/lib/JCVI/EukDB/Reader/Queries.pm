@@ -241,15 +241,15 @@ sub _make_query {
     my @wheres = @$linkage_clauses;
     
     foreach my $clause (@$clauses) {
-        my $table = $clauses->[0];
-        my @conditions = @$clauses[1..$#$clauses];
+        my $table = $clause->[0];
+        my @conditions = @$clause[1..$#$clause];
         
         push @froms, $table;
         push @wheres, @conditions;
     }
     
     my $FROM = join( ', ', @froms);
-    my $WHERE = join '', map { "\nAND $_" } @wheres;
+    my $WHERE = join "\n", map { "AND $_" } @wheres;
 
     #subroutine for converting between temporary tables
     my $tt2tt_name =
@@ -303,11 +303,11 @@ sub _make_query {
 
         my $sth = $dbh->prepare(
             qq{
-                SELECT  $linkage_column AS $input_as,
-                        $output_name AS $output_as
+                SELECT  l.$linkage_column AS $input_as,
+                        l.$output_name AS $output_as
                 INTO    $temp_name
                 FROM    $FROM
-                WHERE   l.$linkage_column IN (}
+                WHERE   l.$linkage_column IN ( }
               . join( ',', ('?') x @$arrayref ) . qq{ )
                 $WHERE
             }
