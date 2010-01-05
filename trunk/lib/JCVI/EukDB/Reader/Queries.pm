@@ -104,14 +104,12 @@ sub _make_query {
     my $class  = shift;
     my $caller = shift;
 
-  #addl_clauses should be an arrayref containing two hashrefs.  The first should
-  #  be
     my ( $input, $output, $linkage, $addl_clauses ) = validate_pos(
         @_,
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
-        { type => Params::Validate::HASHREF }
+        { type => Params::Validate::HASHREF, optional => 1 }
     );
 
     $input   = { name  => $input }   unless ( ref($input) );
@@ -136,6 +134,7 @@ sub _make_query {
     my $tt2tt_name =
       "${input_plural}_temp_table_to_${output_plural}_temp_table";
     my $tt2tt_short = "${input_plural}_tt2${output_plural}_tt";
+
     my $tt2tt       = sub {
         my $self = shift;
         my ($temp1) = validate_pos( @_, { can => ['name'] } );
