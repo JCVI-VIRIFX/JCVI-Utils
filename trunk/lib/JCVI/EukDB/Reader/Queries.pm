@@ -335,18 +335,21 @@ sub _make_query {
         my $temptable;
 
         if ( @_ == 0 ) { Carp::croak 'No parameters passed.'; }
-        elsif ( my $ref = ref( $_[0] ) ) {
-            if    ( $ref eq 'ARRAY' )             { $arrayref  = $_[0] }
-            elsif ( $ref eq 'Sybase::TempTable' ) { $temptable = $_[0] }
+        
+        my $parameter = shift;
+        
+        elsif ( my $ref = ref( $main_parameter] ) ) {
+            if    ( $ref eq 'ARRAY' )             { $arrayref  = $parameter }
+            elsif ( $ref eq 'Sybase::TempTable' ) { $temptable = $parameter }
             else {
                 die qq{Do not know what to do with reference of type "$ref"};
             }
         }
-        elsif ( -f $_[0] ) { $filename = $_[0] }
+        elsif ( -f $parameter ) { $filename = $parameter }
         else { die qq{This method does not take a single '$input'.} }
 
         if ($arrayref) {
-            return $self->$arrayref2tt_name($arrayref)
+            return $self->$arrayref2tt_name($arrayref, @_)
               if ( @$arrayref <= $self->small_array );
             $tempfile = JCVI::EukDB::Utils->arrayref_to_temp_file($arrayref);
             $filename = $tempfile->filename;
@@ -355,7 +358,7 @@ sub _make_query {
             $temptable = JCVI::EukDB::Utils->file_to_assembly_table($filename);
         }
 
-        return $self->$tt2tt_name($temptable);
+        return $self->$tt2tt_name($temptable, @_);
     };
 
     *{"${caller}::$t12t2tt_name"}  = \&$type1_to_type2_tt;
