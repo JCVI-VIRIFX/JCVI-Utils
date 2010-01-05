@@ -237,19 +237,20 @@ sub _make_query {
     my $linkage_clauses = $linkage->{clauses} || [];
     $linkage_clauses = [$linkage_clauses] unless ( ref($linkage_clauses) );
 
-    my @froms = ( "$linkage_table l" );
+    my @froms  = ("$linkage_table l");
     my @wheres = @$linkage_clauses;
-    
+
     foreach my $clause (@$clauses) {
-        my $table = $clause->[0];
-        my @conditions = @$clause[1..$#$clause];
-        
-        push @froms, $table;
+        my $table      = $clause->[0];
+        my @conditions = @$clause[ 1 .. $#$clause ];
+
+        push @froms,  $table;
         push @wheres, @conditions;
     }
-    
-    my $FROM = join( ', ', @froms);
+
+    my $FROM = join( ', ', @froms );
     my $WHERE = join "\n", map { "AND $_" } @wheres;
+    my $parameter_count = $WHERE =~ tr/?//;
 
     #subroutine for converting between temporary tables
     my $tt2tt_name =
@@ -258,7 +259,11 @@ sub _make_query {
 
     my $tt2tt = sub {
         my $self = shift;
-        my ($temp1) = validate_pos( @_, { can => ['name'] } );
+        my ( $temp1, @p ) = validate_pos(
+            @_,
+            { can => ['name'] },
+            ( { type => Params::Validate::SCALAR } ) x $parameter_count
+        );
 
         my $dbh = $self->dbh;
 
@@ -277,7 +282,7 @@ sub _make_query {
                 $WHERE
             }
         );
-        $sth->execute();
+        $sth->execute(@p);
         $sth->finish;
 
         return $temp2;
@@ -293,8 +298,11 @@ sub _make_query {
 
     my $arrayref2tt = sub {
         my $self = shift;
-        my ($arrayref) =
-          validate_pos( @_, { type => Params::Validate::ARRAYREF } );
+        my ( $arrayref, @p ) = validate_pos(
+            @_,
+            { type => Params::Validate::ARRAYREF },
+            ( { type => Params::Validate::SCALAR } ) x $parameter_count
+        );
 
         my $dbh = $self->dbh;
 
@@ -312,7 +320,7 @@ sub _make_query {
                 $WHERE
             }
         );
-        $sth->execute(@$arrayref);
+        $sth->execute( @$arrayref, @p );
         $sth->finish;
 
         return $temp;
@@ -321,63 +329,63 @@ sub _make_query {
     *{"${caller}::$arrayref2tt_name"}  = \&$arrayref2tt;
     *{"${caller}::$arrayref2tt_short"} = \&$arrayref2tt;
 
-    #subroutine for converting one type to a temporary table containing the
-    #  target type
-    my $t12t2tt_name  = "${input_plural}_to_${output_plural}_temp_table";
-    my $t12t2tt_short = "${input_plural}2${output_plural}_tt";
-
-    my $type1_to_type2_tt = sub {
-        my $self = shift;
-
-        my $arrayref;
-        my $tempfile;
-        my $filename;
-        my $temptable;
-
-        if ( @_ == 0 ) { Carp::croak 'No parameters passed.'; }
-        
-        my $parameter = shift;
-        
-        elsif ( my $ref = ref( $main_parameter] ) ) {
-            if    ( $ref eq 'ARRAY' )             { $arrayref  = $parameter }
-            elsif ( $ref eq 'Sybase::TempTable' ) { $temptable = $parameter }
-            else {
-                die qq{Do not know what to do with reference of type "$ref"};
-            }
-        }
-        elsif ( -f $parameter ) { $filename = $parameter }
-        else { die qq{This method does not take a single '$input'.} }
-
-        if ($arrayref) {
-            return $self->$arrayref2tt_name($arrayref, @_)
-              if ( @$arrayref <= $self->small_array );
-            $tempfile = JCVI::EukDB::Utils->arrayref_to_temp_file($arrayref);
-            $filename = $tempfile->filename;
-        }
-        if ($filename) {
-            $temptable = JCVI::EukDB::Utils->file_to_assembly_table($filename);
-        }
-
-        return $self->$tt2tt_name($temptable, @_);
-    };
-
-    *{"${caller}::$t12t2tt_name"}  = \&$type1_to_type2_tt;
-    *{"${caller}::$t12t2tt_short"} = \&$type1_to_type2_tt;
-
-    #subroutine for converting one type to a hashref that maps to the target
-    #  type
-    my $t12t2_name  = "${input_plural}_to_${output_plural}";
-    my $t12t2_short = "${input_plural}2${output_plural}";
-
-    my $type1_to_type2 = sub {
-        my $self = shift;
-
-        my $temp_table = $self->$t12t2tt_name(@_);
-        return JCVI::EukDB::Utils->temp_table_to_hashref($temp_table);
-    };
-
-    *{"${caller}::$t12t2_name"}  = \&$type1_to_type2;
-    *{"${caller}::$t12t2_short"} = \&$type1_to_type2;
+#    #subroutine for converting one type to a temporary table containing the
+#    #  target type
+#    my $t12t2tt_name  = "${input_plural}_to_${output_plural}_temp_table";
+#    my $t12t2tt_short = "${input_plural}2${output_plural}_tt";
+#
+#    my $type1_to_type2_tt = sub {
+#        my $self = shift;
+#
+#        my $arrayref;
+#        my $tempfile;
+#        my $filename;
+#        my $temptable;
+#
+#        if ( @_ == 0 ) { Carp::croak 'No parameters passed.'; }
+#
+#        my $parameter = shift;
+#
+#        elsif ( my $ref = ref($parameter) ) {
+#            if    ( $ref eq 'ARRAY' )             { $arrayref  = $parameter }
+#            elsif ( $ref eq 'Sybase::TempTable' ) { $temptable = $parameter }
+#            else {
+#                die qq{Do not know what to do with reference of type "$ref"};
+#            }
+#        }
+#        elsif ( -f $parameter ) { $filename = $parameter }
+#        else { die qq{This method does not take a single '$input'.} }
+#
+#        if ($arrayref) {
+#            return $self->$arrayref2tt_name( $arrayref, @_ )
+#              if ( @$arrayref <= $self->small_array );
+#            $tempfile = JCVI::EukDB::Utils->arrayref_to_temp_file($arrayref);
+#            $filename = $tempfile->filename;
+#        }
+#        if ($filename) {
+#            $temptable = JCVI::EukDB::Utils->file_to_assembly_table($filename);
+#        }
+#
+#        return $self->$tt2tt_name( $temptable, @_ );
+#    };
+#
+#    *{"${caller}::$t12t2tt_name"}  = \&$type1_to_type2_tt;
+#    *{"${caller}::$t12t2tt_short"} = \&$type1_to_type2_tt;
+#
+#    #subroutine for converting one type to a hashref that maps to the target
+#    #  type
+#    my $t12t2_name  = "${input_plural}_to_${output_plural}";
+#    my $t12t2_short = "${input_plural}2${output_plural}";
+#
+#    my $type1_to_type2 = sub {
+#        my $self = shift;
+#
+#        my $temp_table = $self->$t12t2tt_name(@_);
+#        return JCVI::EukDB::Utils->temp_table_to_hashref($temp_table);
+#    };
+#
+#    *{"${caller}::$t12t2_name"}  = \&$type1_to_type2;
+#    *{"${caller}::$t12t2_short"} = \&$type1_to_type2;
 }
 
 1;
