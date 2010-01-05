@@ -152,6 +152,21 @@ The additional clauses should be a hashref structured in the following way:
         clauses => [<array_of_clause_hashes>]
     }
     
+
+    JCVI::Queries->make_queries(
+        'asmbl_id',
+        'feat_name',
+        {
+            table => 'asm_feature',
+            clauses => 'l.feat_type = ?'
+        },
+        [ 'phys_ev p', 'p.feat_name = l.feat_name', 'p.ev_type = ?' ]
+        
+    
+
+
+    
+    
     #the clause hash describes how to assemble the additional WHERE clause. 
     #  if both r_col and r_val are defined, it is assumed that a test is 
     #  desired for both the column and the value, and a clause will be 
@@ -189,18 +204,19 @@ sub _make_query {
     my $class  = shift;
     my $caller = shift;
 
-    my ( $input, $output, $linkage, $addl_clauses ) = validate_pos(
+    my ( $input, $output, $linkage, $clauses ) = validate_pos(
         @_,
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
-        { type => Params::Validate::HASHREF, optional => 1 }
+        { type => Params::Validate::ARRAYREF, default => [] }
     );
 
     # Make input/output/linkage hashrefs if they are scalars
     $input   = { name  => $input }   unless ( ref($input) );
     $output  = { name  => $output }  unless ( ref($output) );
     $linkage = { table => $linkage } unless ( ref($linkage) );
+    $clauses = [$clauses] if ( @$clauses && ( !ref( $clauses->[0] ) ) );
 
     # Verify that name/table is present in input/output/linkage
     croak 'Input column name must be provided'  unless ( $input->{name} );
@@ -216,12 +232,24 @@ sub _make_query {
     my $output_as     = $output->{as} || $output->{name};
     my $output_plural = $output->{plural} || "$output->{name}s";
 
-    my $linkage_table = $linkage->{table};
-    my $linkage_column = $linkage->{column} || $input->{name};
+    my $linkage_table   = $linkage->{table};
+    my $linkage_column  = $linkage->{column} || $input->{name};
+    my $linkage_clauses = $linkage->{clauses} || [];
+    $linkage_clauses = [$linkage_clauses] unless ( ref($linkage_clauses) );
 
-    my $addl_statement_pieces =
-      _handle_additional_clauses_and_tables( $addl_clauses, $linkage_table );
-    my ( $addl_from, $addl_where ) = @$addl_statement_pieces;
+    my @froms = ( "$linkage_table l" );
+    my @wheres = @$linkage_clauses;
+    
+    foreach my $clause (@$clauses) {
+        my $table = $clauses->[0];
+        my @conditions = @$clauses[1..$#$clauses];
+        
+        push @froms, $table;
+        push @wheres, @conditions;
+    }
+    
+    my $FROM = join( ', ', @froms);
+    my $WHERE = join '', map { "\nAND $_" } @wheres;
 
     #subroutine for converting between temporary tables
     my $tt2tt_name =
@@ -244,10 +272,10 @@ sub _make_query {
                 SELECT  t.$input_name AS $input_as,
                         l.$output_name AS $output_as
                 INTO    $temp2_name
-                FROM    $temp1_name t, $linkage_table l}
-              . $addl_from
-              . qq{ WHERE   t.$input_name = l.$linkage_column }
-              . $addl_where
+                FROM    $temp1_name t, $FROM 
+                WHERE   t.$input_name = l.$linkage_column
+                $WHERE
+            }
         );
         $sth->execute();
         $sth->finish;
@@ -258,8 +286,7 @@ sub _make_query {
     *{"${caller}::$tt2tt_name"}  = \&$tt2tt;
     *{"${caller}::$tt2tt_short"} = \&$tt2tt;
 
-    #subroutine for converting from an array reference to the target temporary
-    #  table
+    # arrayref to temp table
     my $arrayref2tt_name =
       "${input_plural}_arrayref_to_${output_plural}_temp_table";
     my $arrayref2tt_short = "${input_plural}_arrayref2${output_plural}_tt";
@@ -279,10 +306,11 @@ sub _make_query {
                 SELECT  $linkage_column AS $input_as,
                         $output_name AS $output_as
                 INTO    $temp_name
-                FROM    $linkage_table} . $addl_from . qq{
-                WHERE   $linkage_column IN (}
+                FROM    $FROM
+                WHERE   l.$linkage_column IN (}
               . join( ',', ('?') x @$arrayref ) . qq{ )
-            } . $addl_where
+                $WHERE
+            }
         );
         $sth->execute(@$arrayref);
         $sth->finish;
@@ -324,8 +352,7 @@ sub _make_query {
             $filename = $tempfile->filename;
         }
         if ($filename) {
-            $temptable =
-              JCVI::EukDB::Utils->file_to_assembly_table($filename);
+            $temptable = JCVI::EukDB::Utils->file_to_assembly_table($filename);
         }
 
         return $self->$tt2tt_name($temptable);
@@ -348,98 +375,6 @@ sub _make_query {
 
     *{"${caller}::$t12t2_name"}  = \&$type1_to_type2;
     *{"${caller}::$t12t2_short"} = \&$type1_to_type2;
-}
-
-##############################################################################
-#takes:    the additional clauses hash and the linkage_table passed as
-#            parameters to make_queries.
-#does:     uses addl_clauses to properly assemble the additions to the FROM
-#            and WHERE clauses in the SQL query being auto-generated.
-#returns:  an arrayref containing the FROM additions at index 0 and the
-#            WHERE additions at index 1, both as strings.
-##############################################################################
-sub _handle_additional_clauses_and_tables {
-    my ( $addl_clauses, $linkage_table ) = @_;
-
-    my $addl_from  = "";
-    my $addl_where = "";
-    my %tables_to_aliases;
-    $tables_to_aliases{$linkage_table} = 'l';
-
-    for ( my $i = 0 ; $i < @{ $addl_clauses->{tables} } ; $i++ ) {
-        my $table_name = ${ $addl_clauses->{tables} }[$i]->{table};
-        $table_name =~ s/\s//g;
-        $addl_from .= ", " . $table_name . "as $i";
-        $tables_to_aliases{$table_name} = $i;
-    }
-
-    $addl_where .=
-      _assemble_clauses( $addl_clauses->{clauses}, \%tables_to_aliases );
-
-    foreach my $table_hash ( @{ $addl_clauses->{tables} } ) {
-        $addl_where .= _assemble_clauses( $table_hash->{clauses} );
-    }
-
-    return [ $addl_from, $addl_where ];
-}
-
-##############################################################################
-#A helper method for _handle_additional_clauses_and_tables.
-#takes:    an arrayref of clause hashes and a hashref to convert table names
-#            to aliases used in the query.
-#does:     assembles the additions to the WHERE clause
-#returns:  the assembled parts all as a single string
-##############################################################################
-sub _assemble_clauses {
-    my ( $clause_arrayref, $tables_to_aliases ) = @_;
-
-    my $assembled_clauses = "";
-
-    foreach my $clause ( @{$clause_arrayref} ) {
-
-        #guard against any unwanted SQL statements by eliminating spaces
-        map $clause->{$_} =~ s/\s//g, keys %$clause;
-
-        #check the validity of the comparators
-        my ( $comp, $link );
-        unless ( $comp = $clause->{comp} ) {
-            $comp = '=';
-        }
-        else {
-            logcroak("Unknown comparator for additional clause.")
-              unless ( $comp =~ m/^=$|^!=$|^<=$|^>=$|^LIKE$/ );
-        }
-
-        #check the validity of the linkers
-        unless ( $link = $clause->{link} ) {
-            $link = 'AND';
-        }
-        else {
-            logcroak("Unknown linking keyword for additional clause.")
-              unless ( $link =~ m/^AND$|^OR$/ );
-        }
-
-        #check to make sure valid table names are used and get their aliases
-        my $l_alias = $tables_to_aliases->{ $clause->{l_table} };
-        my $r_alias = $tables_to_aliases->{ $clause->{r_table} };
-
-        my $addl_clause =
-          "\n$link $l_alias." . $clause->{l_col} . " $comp $r_alias.";
-        if ( $clause->{r_col} && $clause->{r_val} ) {
-            $addl_clause .=
-                $addl_clause
-              . $clause->{r_col}
-              . $addl_clause
-              . $clause->{r_val};
-        }
-        else {
-            $addl_clause .=
-              ( $clause->{r_col} ) ? $clause->{r_col} : $clause->{r_val};
-        }
-        $assembled_clauses .= $addl_clause;
-    }
-
-    return $assembled_clauses;
 }
 
 1;
