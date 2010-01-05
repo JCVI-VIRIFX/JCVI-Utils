@@ -39,7 +39,14 @@ JCVI::EukDB::Reader::Queries - generate query methods
 This object will make a set of query methods in your class. It has one publicly
 visible method, make_queries, that gets called either through import of
 directly. This method will take a set of options presented as an array for a
-particular query, and autogenerates the query methods for you.
+particular query, and autogenerates the query methods for you. The query
+methods will be named according to the following scheme:
+
+    input_columns_temp_table_to_output_columns_temp_table
+    input_columns_tt2output_columns_tt          # shortened version of above
+    
+    input_columns_arrayref_to_output_columns_temp_table
+    input_columns_arrayref2output_columns_tt    # shortened version of above
 
 =cut
 
