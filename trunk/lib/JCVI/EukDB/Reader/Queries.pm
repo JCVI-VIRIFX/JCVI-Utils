@@ -27,12 +27,29 @@ JCVI::EukDB::Reader::Queries - generate query methods
 
 =head1 SYNOPSIS
 
-    use JCVI::Queries;
-    JCVI::Queries->make_queries( [ $input, $output, $linkage ] );
-    JCVI::Queries->make_queries( [ $input, $output, $linkage, $addl_clauses ] );
-    JCVI::Queries->make_queries( \@query1_options, \@query2_options, ... );
+    use JCVI::EukDB::Reader::Queries;
+    JCVI::EukDB::Reader::Queries->make_queries( [ $input, $output, $linkage ] );
+    JCVI::EukDB::Reader::Queries->make_queries( [ $input, $output, $linkage, @clauses ] );
+    JCVI::EukDB::Reader::Queries->make_queries( \@query1_options, \@query2_options, ... );
 
-    use JCVI::Queries \@query1_options, \@query2_options, ...;
+    use JCVI::EukDB::Reader::Queries \@query1_options, \@query2_options, ...;
+
+    JCVI::EukDB::Reader::Queries->make_queries(
+        [ 'feat_name', { name => 'pub_locus', plural => 'pub_loci' }, 'ident' ]
+    );
+    my $feat_names_to_pub_loci_map = $dao->feat_names_to_pub_loci( $feat_names );
+
+    JCVI::EukDB::Reader::Queries->make_queries(
+        [
+            'feat_name',
+            { name => 'feat_name', plural => 'feat_names_filtered_by_evidence' },
+            { table => 'phys_ev',  clause => 'l.ev_type = ?' }
+        ]
+    );
+    my $working_feat_names =
+      $dao->feat_names_to_feat_names_filtered_by_evidence(
+        $feat_names, 'working'
+    );
 
 =head1 DESCRIPTION
 
@@ -44,7 +61,7 @@ methods will be named according to the following scheme:
 
     input_column_plural_to_input_column_plural
     input_column_plural2input_column_plural
-    
+
     input_column_plural_to_output_column_plural_temp_table
     input_column_plural2output_column_plural_tt
 
@@ -64,11 +81,11 @@ See below for more information on what (input|output)_column_plural means.
 
 =head2 make_queries
 
-    JCVI::Queries->make_queries( [ $input, $output, $linkage ] );
-    JCVI::Queries->make_queries( [ $input, $output, $linkage, $clauses ] );
-    JCVI::Queries->make_queries( \@query1_options, \@query2_options, ... );
+    JCVI::EukDB::Reader::Queries->make_queries( [ $input, $output, $linkage ] );
+    JCVI::EukDB::Reader::Queries->make_queries( [ $input, $output, $linkage, @clauses ] );
+    JCVI::EukDB::Reader::Queries->make_queries( \@query1_options, \@query2_options, ... );
 
-    JCVI::Queries->make_queries(
+    JCVI::EukDB::Reader::Queries->make_queries(
         [
             {
                 name   => $input_name,  # column name to select
@@ -82,13 +99,16 @@ See below for more information on what (input|output)_column_plural means.
             },
             {
                 table  => $linkage_table,  # table we are linking through
-                column => $linkage_column, # we are joining input field to 
+                column => $linkage_column, # we are joining input field to
+
             }
         ]
     );
 
-Takes the input type (i.e. feat_name), output type (i.e. parent_feat), 
-linkage or conversion table (i.e. feat_link or asm_feature), and optional 
+Takes the input type (i.e. feat_name), output type (i.e. parent_feat),
+
+linkage or conversion table (i.e. feat_link or asm_feature), and optional
+
 additional clauses to customize the operation of the query.
 
 The input, output and linkage can either be scalars or hashrefs; if they are
@@ -106,14 +126,15 @@ parents. The query links through the feat_link table:
     WHERE  t.feat_name = l.child_feat
 
 We want this query to work recursively, but that won't happen because the
-column feat_name in the new temp table is still the old feat_name. What we 
+column feat_name in the new temp table is still the old feat_name. What we
+
 want to happen is:
 
     SELECT t.feat_name AS child, l.parent_feat AS feat_name
 
 The "as" property is what defines how the field is output.
 
-    JCVI::Queries->make_queries(
+    JCVI::EukDB::Reader::Queries->make_queries(
         [
             { name => 'feat_name',   as => 'child' },
             { name => 'parent_feat', as => 'feat_name' }
@@ -136,65 +157,75 @@ table column name is "child_feat". Thus, the full make_queries call would look
 like:
 
     # Create queries that look like feat_names_to_parents
-    JCVI::Queries->make_queries(
+    JCVI::EukDB::Reader::Queries->make_queries(
         [
             { name => 'feat_name',   as => 'child' },
             { name => 'parent_feat', as => 'feat_name', plural => 'parents' },
             { table => 'feat_link', column => 'child_feat' }
         ]
-    ); 
-
-Additionally, there are some cases in which one needs to make more complicated
-queries or needs to join on the linkage table more than once in a query.  To 
-accomplish this, more tables and WHERE clause elements may be specified in the
-$clauses parameter.  There is a "clauses" hash element to modify the way the 
-linkage table is used.  Any other tables and their clauses may be specified in
-an array reference passed as the fourth parameter.  The following example 
-shows how to specify a query for converting asmbl_ids to feat_names of a 
-specific feature and evidence type:
-
-    JCVI::Queries->make_queries(
-        'asmbl_id',
-        {
-            name   => 'feat_name',
-            plural => 'feat_names_of_type_evidence'
-        },
-        {
-            table   => 'asm_feature',
-            clauses => 'l.feat_type = ?'
-        },
-        [ 'phys_ev p', 'p.feat_name = l.feat_name', 'p.ev_type = ?' ]
     );
 
-Note that the alias for the linkage table will always be 'l', so do not 
-specify this as the alias for an additional table and always use this alias 
-to specify the linkage table in any additional clauses.  If more than one 
-table must be added to the query, specify the table and the accompanying 
-clauses in a new arrayref and make the fourth parameter an arrayref of 
-arrayrefs.  The following is an example in which the previous asmbl_id to 
+Additionally, there are some cases in which one needs to make more complicated
+queries or needs to join on the linkage table more than once in a query.  To
+
+accomplish this, more tables and WHERE clause elements may be specified in the
+$clauses parameter. There is a "clauses" hash element to modify the way the
+
+linkage table is used. Any other tables and their clauses may be specified in
+an array reference passed as subsequent parameters. The following example shows
+how to specify a query for converting asmbl_ids to feat_names of a specific
+feature and evidence type:
+
+    JCVI::EukDB::Reader::Queries->make_queries(
+        [
+            'asmbl_id',
+            {
+                name   => 'feat_name',
+                plural => 'feat_names_of_type_evidence'
+            },
+            {
+                table   => 'asm_feature',
+                clauses => 'l.feat_type = ?'
+            },
+            [ 'phys_ev p', 'p.feat_name = l.feat_name', 'p.ev_type = ?' ]
+        ]
+    );
+
+Note that the alias for the linkage table will always be 'l', so do not
+
+specify this as the alias for an additional table and always use this alias
+
+to specify the linkage table in any additional clauses.  If more than one
+
+table must be added to the query, specify the table and the accompanying
+
+clauses in a new arrayref and make the fourth parameter an arrayref of
+
+arrayrefs.  The following is an example in which the previous asmbl_id to
+
 feat_name query specifies that all assemblies must be public:
 
-    JCVI::Queries->make_queries(
-        {
-            name => 'asmbl_id',
-            plural => 'public_assemblies'
-        },
-        {
-            name   => 'feat_name',
-            plural => 'feat_names_of_type_evidence'
-        },
-        {
-            table   => 'asm_feature',
-            clauses => 'l.feat_type = ?'
-        },
+    JCVI::EukDB::Reader::Queries->make_queries(
         [
+            {
+                name => 'asmbl_id',
+                plural => 'public_assemblies'
+            },
+            {
+                name   => 'feat_name',
+                plural => 'feat_names_of_type_evidence'
+            },
+            {
+                table   => 'asm_feature',
+                clauses => 'l.feat_type = ?'
+            },
             [ 'phys_ev p', 'p.feat_name = l.feat_name', 'p.ev_type = ?' ],
             [ 'clone_info c', 'c.asmbl_id = l.asmbl_id', 'c.is_public = 1' ]
         ]
-    )
+    );
 
-Methods for data conversion will then be autogenerated to use the queries 
-defined by the parameters passed to make_queries.
+Any parameters that need to be passed to the autogenerated queries are passed
+after the temporary table or arrayref.
 
 =cut
 
@@ -217,19 +248,18 @@ sub _make_query {
     my $caller = shift;
 
     # Get the basic parameters
-    my ( $input, $output, $linkage, $clauses ) = validate_pos(
+    my ( $input, $output, $linkage, @clauses ) = validate_pos(
         @_,
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
-        { type => Params::Validate::ARRAYREF, default => [] }
+        ( { type => Params::Validate::ARRAYREF } ) x ( @_ - 3 )
     );
 
     # Make input/output/linkage hashrefs if they are scalars
     $input   = { name  => $input }   unless ( ref($input) );
     $output  = { name  => $output }  unless ( ref($output) );
     $linkage = { table => $linkage } unless ( ref($linkage) );
-    $clauses = [$clauses] if ( @$clauses && ( !ref( $clauses->[0] ) ) );
 
     # Verify that name/table is present in input/output/linkage
     croak 'Input column name must be provided'  unless ( $input->{name} );
@@ -253,7 +283,7 @@ sub _make_query {
     my @froms  = ("$linkage_table l");
     my @wheres = @$linkage_clauses;
 
-    foreach my $clause (@$clauses) {
+    foreach my $clause (@clauses) {
         my ( $table, @conditions ) = @$clause;
         croak qq{No conditions specified in clauses for table "$table"}
           unless (@conditions);
@@ -297,7 +327,8 @@ sub _make_query {
                 SELECT  t.$input_name AS $input_as,
                         l.$output_name AS $output_as
                 INTO    $temp2_name
-                FROM    $temp1_name t, $FROM 
+                FROM    $temp1_name t, $FROM
+
                 WHERE   t.$input_name = l.$linkage_column
                 $WHERE
             }
