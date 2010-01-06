@@ -421,7 +421,7 @@ sub _make_query {
         if ($arrayref) {
             return $self->$arrayref2tt_name( $arrayref, @_ )
               if ( @$arrayref <= $self->small_array );
-            $tempfile = JCVI::EukDB::Utils->arrayref_to_temp_file($arrayref);
+            $tempfile = $self->arrayref_to_temp_file($arrayref);
             $filename = $tempfile->filename;
         }
         if ($filename) {
