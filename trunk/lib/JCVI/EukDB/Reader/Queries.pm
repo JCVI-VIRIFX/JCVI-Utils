@@ -42,11 +42,19 @@ directly. This method will take a set of options presented as an array for a
 particular query, and autogenerates the query methods for you. The query
 methods will be named according to the following scheme:
 
-    input_columns_temp_table_to_output_columns_temp_table
-    input_columns_tt2output_columns_tt          # shortened version of above
+    input_column_plural_to_input_column_plural
+    input_column_plural2input_column_plural
     
-    input_columns_arrayref_to_output_columns_temp_table
-    input_columns_arrayref2output_columns_tt    # shortened version of above
+    input_column_plural_to_output_column_plural_temp_table
+    input_column_plural2output_column_plural_tt
+
+    input_column_plural_temp_table_to_output_column_plural_temp_table
+    input_column_plural_tt2output_column_plural_tt
+
+    input_column_plural_arrayref_to_output_column_plural_temp_table
+    input_column_plural_arrayref2output_column_plural_tt
+
+See below for more information on what (input|output)_column_plural means.
 
 =cut
 
@@ -127,6 +135,7 @@ default, this is the same as input->{name}, however, in this case, the linkage
 table column name is "child_feat". Thus, the full make_queries call would look
 like:
 
+    # Create queries that look like feat_names_to_parents
     JCVI::Queries->make_queries(
         [
             { name => 'feat_name',   as => 'child' },
@@ -138,17 +147,20 @@ like:
 Additionally, there are some cases in which one needs to make more complicated
 queries or needs to join on the linkage table more than once in a query.  To 
 accomplish this, more tables and WHERE clause elements may be specified in the
-$clauses parameter.  There is a 'clauses' hash element to modify the way the 
+$clauses parameter.  There is a "clauses" hash element to modify the way the 
 linkage table is used.  Any other tables and their clauses may be specified in
 an array reference passed as the fourth parameter.  The following example 
 shows how to specify a query for converting asmbl_ids to feat_names of a 
-specific evidence type:
+specific feature and evidence type:
 
     JCVI::Queries->make_queries(
         'asmbl_id',
-        'feat_name',
         {
-            table => 'asm_feature',
+            name   => 'feat_name',
+            plural => 'feat_names_of_type_evidence'
+        },
+        {
+            table   => 'asm_feature',
             clauses => 'l.feat_type = ?'
         },
         [ 'phys_ev p', 'p.feat_name = l.feat_name', 'p.ev_type = ?' ]
@@ -163,8 +175,14 @@ arrayrefs.  The following is an example in which the previous asmbl_id to
 feat_name query specifies that all assemblies must be public:
 
     JCVI::Queries->make_queries(
-        'asmbl_id',
-        'feat_name',
+        {
+            name => 'asmbl_id',
+            plural => 'public_assemblies'
+        },
+        {
+            name   => 'feat_name',
+            plural => 'feat_names_of_type_evidence'
+        },
         {
             table   => 'asm_feature',
             clauses => 'l.feat_type = ?'
@@ -198,6 +216,7 @@ sub _make_query {
     my $class  = shift;
     my $caller = shift;
 
+    # Get the basic parameters
     my ( $input, $output, $linkage, $clauses ) = validate_pos(
         @_,
         { type => Params::Validate::SCALAR | Params::Validate::HASHREF },
@@ -235,8 +254,9 @@ sub _make_query {
     my @wheres = @$linkage_clauses;
 
     foreach my $clause (@$clauses) {
-        my $table      = $clause->[0];
-        my @conditions = @$clause[ 1 .. $#$clause ];
+        my ( $table, @conditions ) = @$clause;
+        croak qq{No conditions specified in clauses for table "$table"}
+          unless (@conditions);
 
         push @froms,  $table;
         push @wheres, @conditions;
@@ -246,13 +266,18 @@ sub _make_query {
     my $WHERE = join "\n", map { "AND $_" } @wheres;
     my $parameter_count = $WHERE =~ tr/?//;
 
-    #subroutine for converting between temporary tables
+    # temp table to temp table
+
+    # subroutine names
     my $tt2tt_name =
       "${input_plural}_temp_table_to_${output_plural}_temp_table";
     my $tt2tt_short = "${input_plural}_tt2${output_plural}_tt";
 
+    # subroutine
     my $tt2tt = sub {
         my $self = shift;
+
+        # Verify that a temporary table and correct number of parameters passed
         my ( $temp1, @p ) = validate_pos(
             @_,
             { can => ['name'] },
@@ -261,6 +286,7 @@ sub _make_query {
 
         my $dbh = $self->dbh;
 
+        # Create a new temporary table
         my $temp2 = Sybase::TempTable->reserve($dbh);
 
         my $temp1_name = $temp1->name;
@@ -282,16 +308,22 @@ sub _make_query {
         return $temp2;
     };
 
+    # inject subroutine
     *{"${caller}::$tt2tt_name"}  = \&$tt2tt;
     *{"${caller}::$tt2tt_short"} = \&$tt2tt;
 
     # arrayref to temp table
+
+    # subroutine names
     my $arrayref2tt_name =
       "${input_plural}_arrayref_to_${output_plural}_temp_table";
     my $arrayref2tt_short = "${input_plural}_arrayref2${output_plural}_tt";
 
+    # subroutine
     my $arrayref2tt = sub {
         my $self = shift;
+
+        # Verify that an arrayref and correct number of parameters passed
         my ( $arrayref, @p ) = validate_pos(
             @_,
             { type => Params::Validate::ARRAYREF },
@@ -300,6 +332,7 @@ sub _make_query {
 
         my $dbh = $self->dbh;
 
+        # create a new temporary table
         my $temp      = Sybase::TempTable->reserve($dbh);
         my $temp_name = $temp->name;
 
@@ -320,23 +353,30 @@ sub _make_query {
         return $temp;
     };
 
+    # inject subroutine
     *{"${caller}::$arrayref2tt_name"}  = \&$arrayref2tt;
     *{"${caller}::$arrayref2tt_short"} = \&$arrayref2tt;
 
-    #subroutine for converting one type to a temporary table containing the
-    #  target type
+    # anything to temp table
     my $t12t2tt_name  = "${input_plural}_to_${output_plural}_temp_table";
     my $t12t2tt_short = "${input_plural}2${output_plural}_tt";
 
     my $type1_to_type2_tt = sub {
         my $self = shift;
-        croak 'No parameters passed.' if ( @_ == 0 );
-        my $parameter = shift;
-        my $arrayref;
-        my $tempfile;
-        my $filename;
-        my $temptable;
 
+        croak 'No parameters passed.' if ( @_ == 0 );
+
+        my $parameter = shift;
+
+        # figure out what to do with the parameter
+        # there is a pipeline in place:
+        #   if we have an arrayref:
+        #     if it is small enough, call the arrayref_to_temp_table query
+        #     else, convert make a file
+        #   if we have a file, convert it to a temp table
+        #   if we have a temptable, call the temp_table_to_temp_table query
+
+        my ( $arrayref, $tempfile, $filename, $temptable );
         if ( my $ref = ref($parameter) ) {
             if    ( $ref eq 'ARRAY' )             { $arrayref  = $parameter }
             elsif ( $ref eq 'Sybase::TempTable' ) { $temptable = $parameter }
@@ -345,7 +385,7 @@ sub _make_query {
             }
         }
         elsif ( -f $parameter ) { $filename = $parameter }
-        else { die qq{This method does not take a single '$input'.} }
+        else { die qq{This method does not take a single "$input_name".} }
 
         if ($arrayref) {
             return $self->$arrayref2tt_name( $arrayref, @_ )
@@ -354,8 +394,7 @@ sub _make_query {
             $filename = $tempfile->filename;
         }
         if ($filename) {
-            $temptable =
-              JCVI::EukDB::Utils->file_to_assembly_table($filename);
+            $temptable = $self->file_to_assembly_table($filename);
         }
 
         return $self->$tt2tt_name( $temptable, @_ );
@@ -364,8 +403,7 @@ sub _make_query {
     *{"${caller}::$t12t2tt_name"}  = \&$type1_to_type2_tt;
     *{"${caller}::$t12t2tt_short"} = \&$type1_to_type2_tt;
 
-    #subroutine for converting one type to a hashref that maps to the target
-    #  type
+    # anything to hashref map
     my $t12t2_name  = "${input_plural}_to_${output_plural}";
     my $t12t2_short = "${input_plural}2${output_plural}";
 
@@ -373,7 +411,7 @@ sub _make_query {
         my $self = shift;
 
         my $temp_table = $self->$t12t2tt_name(@_);
-        return JCVI::EukDB::Utils->temp_table_to_hashref($temp_table);
+        return $self->temp_table_to_hashref($temp_table);
     };
 
     *{"${caller}::$t12t2_name"}  = \&$type1_to_type2;
