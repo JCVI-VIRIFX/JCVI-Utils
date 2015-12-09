@@ -1,0 +1,12 @@
+Revision history for JCVI-Bounds
+
+0.2.0   Apr 15, 2009
+ - Moved to JCVI::Bounds
+ - Implemented as an arrayref with just 3 values
+ - Quicker
+ - Meant to be used with composition (i.e. your object has a bounds object)
+
+0.1.0   Once upon a time
+ - Initial version
+ - Based on Class::Accessor::Validating
+ - Was meant to be extended

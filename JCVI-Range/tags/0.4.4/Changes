@@ -1,0 +1,63 @@
+Revision history for JCVI-Bounds
+
+0.4.4   Sep 21 2009
+  - Added helper methods to simplify and spliced methods in Set::Interface
+
+0.4.3   Sep 18 2009
+  - Renamed bounds in Set::Interface to exons
+
+0.4.2   Sep  8 2009
+  - Renamed spliced/splength methods in Set::Interface for clarity
+
+0.4.1   Sep  1 2009
+  - Documentation fixes
+  - Bounds are always set as 3-member array
+  - Simplified sort method in Set
+  - The defaults for string methods can be changed
+
+0.4.0   Jul 29 2009
+  - Split apart the interface to make it more readable
+  - Removed comparison code from JCVI::Bounds and put it into interface
+  - Allowed setting of lower/upper bound in JCVI::Bounds::Set::Interface
+  - Removed circular dependency between JCVI::Bounds::Set/::Interface
+
+0.3.2   Apr 27 2009
+  - Intersection returns nothing, not undef if bounds don't overlap
+
+0.3.1   Apr 21 2009
+  - Fixed spaceship function in JCVI::Bounds::Interface
+  - Added lus constructor to JCVI::Bounds
+  - Removed relative from JCVI::Bounds
+  - Moved most Set functions to JCVI::Bounds::Set::Interface
+  - Renamed bounds method in Set to simplify
+
+0.3.0   Apr 21 2009
+  - Moved common functions to JCVI::Bounds::Interface
+
+0.2.4   Apr 17 2009
+  - Fixed bug in Bounds::e53 where end5 == end3
+  - Suppressed warnings in Set::strand
+
+0.2.3   Apr 16 2009
+  - Added intersection to Bounds
+  - Added bounds method to Set
+  - Cleaned up inheritance from Bounds in Set
+
+0.2.2   Apr 15 2009
+  - Added JCVI::Bounds::Set
+  - Polished documentation in Bounds
+
+0.2.1   Apr 15 2009
+  - Put use version on same line as $VERSION declared
+  - Added META.yml so make dist would work
+
+0.2.0   Apr 15 2009
+  - Moved to JCVI::Bounds
+  - Implemented as an arrayref with just 3 values
+  - Quicker than using Class::Accessor::Validing
+  - Meant to be used with composition (i.e. your object has a bounds object)
+
+0.1.0
+  - Initial version
+  - Based on Class::Accessor::Validating
+  - Was meant to be extended

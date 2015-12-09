@@ -1,0 +1,78 @@
+Revision history for JCVI::Range
+
+0.5.1
+  - Renamed regular expressions
+  - 5' and 3' end properly validated to be positive integers
+  - Rename 'Interface' to 'Base'
+  - Added union method to Range
+  - Renamed tests
+
+0.5.0   Oct 12 2009
+  - Renamed from JCVI::Bounds to JCVI::Range
+  - Removed phase method
+  - Removed added cast method
+
+0.4.5   Sep 21 2009
+  - Fixed serious bug where updating lower bound would not adjust length
+
+0.4.4   Sep 21 2009
+  - Added helper methods to simplify and spliced methods in Set::Interface
+
+0.4.3   Sep 18 2009
+  - Renamed range in Set::Interface to exons
+
+0.4.2   Sep  8 2009
+  - Renamed spliced/splength methods in Set::Interface for clarity
+
+0.4.1   Sep  1 2009
+  - Documentation fixes
+  - Range are always set as 3-member array
+  - Simplified sort method in Set
+  - The defaults for string methods can be changed
+
+0.4.0   Jul 29 2009
+  - Split apart the interface to make it more readable
+  - Removed comparison code from JCVI::Range and put it into interface
+  - Allowed setting of lower/upper bound in JCVI::Range::Set::Interface
+  - Removed circular dependency between JCVI::Range::Set/::Interface
+
+0.3.2   Apr 27 2009
+  - Intersection returns nothing, not undef if range don't overlap
+
+0.3.1   Apr 21 2009
+  - Fixed spaceship function in JCVI::Range::Interface
+  - Added lus constructor to JCVI::Range
+  - Removed relative from JCVI::Range
+  - Moved most Set functions to JCVI::Range::Set::Interface
+  - Renamed range method in Set to simplify
+
+0.3.0   Apr 21 2009
+  - Moved common functions to JCVI::Range::Interface
+
+0.2.4   Apr 17 2009
+  - Fixed bug in Range::e53 where end5 == end3
+  - Suppressed warnings in Set::strand
+
+0.2.3   Apr 16 2009
+  - Added intersection to Range
+  - Added range method to Set
+  - Cleaned up inheritance from Range in Set
+
+0.2.2   Apr 15 2009
+  - Added JCVI::Range::Set
+  - Polished documentation in Range
+
+0.2.1   Apr 15 2009
+  - Put use version on same line as $VERSION declared
+  - Added META.yml so make dist would work
+
+0.2.0   Apr 15 2009
+  - Moved to JCVI::Range
+  - Implemented as an arrayref with just 3 values
+  - Quicker than using Class::Accessor::Validing
+  - Meant to be used with composition (i.e. your object has a range object)
+
+0.1.0
+  - Initial version
+  - Based on Class::Accessor::Validating
+  - Was meant to be extended
